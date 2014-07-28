@@ -1,0 +1,170 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<deployment-project plugin="plugin.ezdeploy" plugin-version="1.0">
+  <configuration target="target.ezdeploy.standalone" target-name="MATLAB Compiler for Standalone Applications" name="scanbox" location="C:\Users\dario\Documents\MATLAB\scanbox" file="C:\Users\dario\Documents\MATLAB\scanbox\scanbox.prj" preferred-package-type="package.type.exe" build-checksum="4178556359" preferred-package-location="C:\Users\dario\Documents\MATLAB\scanbox\scanbox\for_redistribution">
+    <param.appname>scanbox</param.appname>
+    <param.authnamewatermark>Dario Ringach</param.authnamewatermark>
+    <param.email>dario@ucla.edu</param.email>
+    <param.company />
+    <param.icon>${PROJECT_ROOT}\scanbox_resources\icon.ico</param.icon>
+    <param.icons>
+      <file>${PROJECT_ROOT}\scanbox_resources\icon_48.png</file>
+      <file>${PROJECT_ROOT}\scanbox_resources\icon_32.png</file>
+      <file>${PROJECT_ROOT}\scanbox_resources\icon_24.png</file>
+      <file>${PROJECT_ROOT}\scanbox_resources\icon_16.png</file>
+    </param.icons>
+    <param.summary />
+    <param.description />
+    <param.screenshot>${PROJECT_ROOT}\scanbox.png</param.screenshot>
+    <param.version>1.0</param.version>
+    <param.namespace>scanbox</param.namespace>
+    <param.guid />
+    <param.installpath.string>\scanbox\</param.installpath.string>
+    <param.installpath.combo>option.installpath.programfiles</param.installpath.combo>
+    <param.logo />
+    <param.install.notes />
+    <param.intermediate>${PROJECT_ROOT}\scanbox\for_testing</param.intermediate>
+    <param.output>${PROJECT_ROOT}\scanbox\for_redistribution</param.output>
+    <param.embed.ctf>true</param.embed.ctf>
+    <param.target.type>subtarget.standalone</param.target.type>
+    <param.classorg />
+    <param.web.mcr>true</param.web.mcr>
+    <param.package.mcr>false</param.package.mcr>
+    <param.no.mcr>false</param.no.mcr>
+    <param.web.mcr.name>MyAppInstaller_web</param.web.mcr.name>
+    <param.package.mcr.name>MyAppInstaller_mcr</param.package.mcr.name>
+    <param.no.mcr.name>MyAppInstaller_app</param.no.mcr.name>
+    <param.user.defined.mcr.options />
+    <param.windows.command.prompt>true</param.windows.command.prompt>
+    <param.user.only.registration>false</param.user.only.registration>
+    <param.mads.no.java>false</param.mads.no.java>
+    <param.mads.exclusive.mcr>false</param.mads.exclusive.mcr>
+    <param.net.framework>option.net.framework.default</param.net.framework>
+    <param.assembly.type>false</param.assembly.type>
+    <param.encryption.key.file />
+    <param.net.enable.remoting>false</param.net.enable.remoting>
+    <param.net.tsa.enable>false</param.net.tsa.enable>
+    <param.net.tsa.assembly />
+    <param.net.tsa.interface />
+    <param.net.tsa.namespace>scanbox</param.net.tsa.namespace>
+    <param.net.tsa.superclass />
+    <param.net.tsa.metadata />
+    <param.net.tsa.metadata.assembly>C:\Users\dario\Documents\MATLAB</param.net.tsa.metadata.assembly>
+    <param.create.log>true</param.create.log>
+    <param.log.file>scanbox</param.log.file>
+    <unset>
+      <param.authnamewatermark />
+      <param.email />
+      <param.company />
+      <param.summary />
+      <param.description />
+      <param.version />
+      <param.namespace />
+      <param.guid />
+      <param.installpath.string />
+      <param.logo />
+      <param.install.notes />
+      <param.intermediate />
+      <param.output />
+      <param.embed.ctf />
+      <param.target.type />
+      <param.classorg />
+      <param.web.mcr />
+      <param.package.mcr />
+      <param.no.mcr />
+      <param.web.mcr.name />
+      <param.package.mcr.name />
+      <param.no.mcr.name />
+      <param.user.defined.mcr.options />
+      <param.windows.command.prompt />
+      <param.user.only.registration />
+      <param.mads.no.java />
+      <param.mads.exclusive.mcr />
+      <param.net.framework />
+      <param.assembly.type />
+      <param.encryption.key.file />
+      <param.net.enable.remoting />
+      <param.net.tsa.enable />
+      <param.net.tsa.assembly />
+      <param.net.tsa.interface />
+      <param.net.tsa.namespace />
+      <param.net.tsa.superclass />
+      <param.net.tsa.metadata />
+      <param.net.tsa.metadata.assembly />
+    </unset>
+    <fileset.main>
+      <file>${PROJECT_ROOT}\scanbox.m</file>
+    </fileset.main>
+    <fileset.resources>
+      <file>C:\Users\dario\Documents\MATLAB\AlazarTech\ATS-SDK\6.1.0\Samples_MATLAB\Include\AlazarDefs.m</file>
+      <file>C:\Users\dario\Documents\MATLAB\AlazarTech\ATS-SDK\6.1.0\Samples_MATLAB\Include\AlazarInclude.m</file>
+      <file>C:\Users\dario\Documents\MATLAB\AlazarTech\ATS-SDK\6.1.0\Samples_MATLAB\Include\AlazarInclude_pcwin32.m</file>
+      <file>C:\Users\dario\Documents\MATLAB\AlazarTech\ATS-SDK\6.1.0\Samples_MATLAB\Include\AlazarInclude_pcwin64.m</file>
+      <file>C:\Users\dario\Documents\MATLAB\AlazarTech\ATS-SDK\6.1.0\Samples_MATLAB\Include\alazarLoadLibrary.m</file>
+      <file>C:\Users\dario\Documents\MATLAB\AlazarTech\ATS-SDK\6.1.0\Samples_MATLAB\Include\ATSApi_thunk_pcwin64.dll</file>
+      <file>C:\Users\dario\Documents\MATLAB\AlazarTech\ATS-SDK\6.1.0\Samples_MATLAB\Include\boardTypeIdToText.m</file>
+      <file>C:\Users\dario\Documents\MATLAB\AlazarTech\ATS-SDK\6.1.0\Samples_MATLAB\Include\errorToText.m</file>
+      <file>C:\Users\dario\Documents\MATLAB\AlazarTech\ATS-SDK\6.1.0\Samples_MATLAB\Include\inputRangeIdToVolts.m</file>
+      <file>${PROJECT_ROOT}\cellseg.m</file>
+      <file>${PROJECT_ROOT}\configureLsb9440.m</file>
+      <file>${PROJECT_ROOT}\crc16_calculate.m</file>
+      <file>${PROJECT_ROOT}\ginput_c.m</file>
+      <file>${PROJECT_ROOT}\laser_close.m</file>
+      <file>${PROJECT_ROOT}\laser_open.m</file>
+      <file>${PROJECT_ROOT}\laser_send.m</file>
+      <file>${PROJECT_ROOT}\ot_close.m</file>
+      <file>${PROJECT_ROOT}\ot_current.m</file>
+      <file>${PROJECT_ROOT}\ot_frequency.m</file>
+      <file>${PROJECT_ROOT}\ot_lower.m</file>
+      <file>${PROJECT_ROOT}\ot_mode.m</file>
+      <file>${PROJECT_ROOT}\ot_open.m</file>
+      <file>${PROJECT_ROOT}\ot_start.m</file>
+      <file>${PROJECT_ROOT}\ot_upper.m</file>
+      <file>${PROJECT_ROOT}\pixel_lut.m</file>
+      <file>${PROJECT_ROOT}\sb_abort.m</file>
+      <file>${PROJECT_ROOT}\sb_callback.m</file>
+      <file>${PROJECT_ROOT}\sb_close.m</file>
+      <file>${PROJECT_ROOT}\sb_gain0.m</file>
+      <file>${PROJECT_ROOT}\sb_gain1.m</file>
+      <file>${PROJECT_ROOT}\sb_mirror.m</file>
+      <file>${PROJECT_ROOT}\sb_open.m</file>
+      <file>${PROJECT_ROOT}\sb_scan.m</file>
+      <file>${PROJECT_ROOT}\sb_setframe.m</file>
+      <file>${PROJECT_ROOT}\sb_setline.m</file>
+      <file>${PROJECT_ROOT}\sb_setmag.m</file>
+      <file>${PROJECT_ROOT}\sb_setparam.m</file>
+      <file>${PROJECT_ROOT}\sb_timestamps.m</file>
+      <file>${PROJECT_ROOT}\scanbox.fig</file>
+      <file>${PROJECT_ROOT}\tri_close.m</file>
+      <file>${PROJECT_ROOT}\tri_open.m</file>
+      <file>${PROJECT_ROOT}\tri_send.m</file>
+      <file>${PROJECT_ROOT}\WindowAPI.m</file>
+      <file>${PROJECT_ROOT}\WindowAPI.mexw64</file>
+    </fileset.resources>
+    <fileset.package />
+    <build-deliverables>
+      <file name="scanbox.exe" location="${PROJECT_ROOT}\scanbox\for_testing" optional="false">C:\Users\dario\Documents\MATLAB\scanbox\scanbox\for_testing\scanbox.exe</file>
+      <file name="readme.txt" location="${PROJECT_ROOT}\scanbox\for_testing" optional="true">C:\Users\dario\Documents\MATLAB\scanbox\scanbox\for_testing\readme.txt</file>
+    </build-deliverables>
+    <workflow />
+    <matlab>
+      <root>Z:\Matlab</root>
+      <toolboxes />
+    </matlab>
+    <platform>
+      <unix>false</unix>
+      <mac>false</mac>
+      <windows>true</windows>
+      <win2k>false</win2k>
+      <winxp>false</winxp>
+      <vista>false</vista>
+      <linux>false</linux>
+      <solaris>false</solaris>
+      <osver>6.1</osver>
+      <os32>false</os32>
+      <os64>true</os64>
+      <arch>win64</arch>
+      <matlab>true</matlab>
+    </platform>
+  </configuration>
+</deployment-project>
+
