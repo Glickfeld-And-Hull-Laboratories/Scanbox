@@ -1,6 +1,20 @@
 function x = sbxread(fname,k,N,varargin)
 
 % Reads frame k to k+N-1 in file fname...
+% 
+% fname - the file name (e.g., 'xx0_000_001')
+% k     - the index of the first frame to be read.  The first index is 0.
+% N     - the number of consecutive frames to read starting with k.
+%
+% If N>1 it returns a 4D array of size = [#pmt rows cols N] 
+% If N=1 it returns a 3D array of size = [#pmt rows cols]
+%
+% #pmts is the number of pmt channels being sampled (1 or 2)
+% rows is the number of lines in the image
+% cols is the number of pixels in each line
+%
+% Note that these images are the raw data, not corrected for motion and
+% non-uniform sampling
 
 global info_loaded info
 

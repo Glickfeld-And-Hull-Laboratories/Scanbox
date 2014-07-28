@@ -25,6 +25,12 @@ switch cmd
         msg(2) = 4;
     case 'MST'  %% motor stop
         msg(2) = 3;
+    case 'SCO'  %% set coordinate 
+        msg(2) = 30;
+    case 'GCO'  %% get coordinate
+        msg(2) = 31;
+    case 'CCO'  %% capture coordinate 
+        msg(2) = 32; 
 end
 
 msg(3) = uint8(type);

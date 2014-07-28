@@ -22,7 +22,7 @@ function varargout = scanbox(varargin)
 
 % Edit the above text to modify the response to help scanbox
 
-% Last Modified by GUIDE v2.5 16-Jun-2014 16:00:56
+% Last Modified by GUIDE v2.5 24-Jul-2014 09:19:20
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -60,7 +60,7 @@ guidata(hObject, handles);
 
 % Make sure ethernet connection to outside world is disabled...
 
-[~, ~] = system('netsh interface set interface "Outside World" DISABLED');
+[~, ~] = system('netsh interface set interface "Local Area Connection" DISABLED');
 
 % Config options...
 
@@ -72,7 +72,7 @@ WindowAPI(h,'Position',[p.Position(3:4)/2 - [200 100] 400 200])
 WindowAPI(h,'Alpha',0.9)
 WindowAPI(h,'Clip')
 WindowAPI(h,'TopMost')
-sbt = text(0.5, 0.5, 'Scanbox 1.1', ...
+sbt = text(0.5, 0.5, 'Scanbox 1.2', ...
     'Units',    'normalized', ...
     'FontSize', 24, ...
     'HorizontalAlignment', 'center', ...
@@ -140,6 +140,8 @@ if(isempty(sbconfig.laser_type))
         end
     end
     set(handles.lstatus,'String','Use the laser''s GUI for control');
+    set(handles.pushbutton48,'Enable','on');
+    set(handles.pushbutton49,'Enable','on');
 end
 
 % delete any hanging communication objects
@@ -169,7 +171,14 @@ set(sbt,'String','Opening motor controller'); drawnow;
 tri_open;
 
 set(sbt,'String','Opening laser'); drawnow;
-laser_open;
+
+try
+    laser_open;
+catch
+    delete(10)
+    error('Scanbox:LaserComm', ...
+        '\nCannot communicate with laser!\nPlease check:\n -Serial cable\n -COM port in scanbox_config\n\n');
+end
 
 set(sbt,'String','Opening socket'); drawnow;
 udp_open;
@@ -191,7 +200,7 @@ ttlonline=0;
 
 % motor variables init...
 
-global axis_sel origin motor_gain mstep dmpos motormode;
+global axis_sel origin motor_gain mstep dmpos motormode mpos;
 
 motormode = 1; % normal
 
@@ -201,17 +210,41 @@ axis_sel = 2; % select x axis to begin with
 
 mstep = [500 2000 2000 500];  % initialize with step sizes for coarse...
 
+
+% % reset the memories...
+% 
+% for(j=1:4)
+%     for(i=0:3)
+%         tri_send('CCO',3,i,0);
+%     end
+% end
+
 % set velocity and acceleration for motor 4 to control laser power
 
 r = tri_send('SAP',4,4,2000);        %% set max vel and acc
 r = tri_send('SAP',5,4,2000);
 
-for(i=0:3)
-    r = tri_send('MVP',1,i,0);       %% zero and set origin
-    origin(i+1) = r.value;
+try
+    for(i=0:3)
+        r = tri_send('MVP',1,i,0);       %% zero and set origin
+        origin(i+1) = r.value;
+        r = tri_send('SAP',4,i,2000);    %% max vel accel
+        r = tri_send('SAP',5,i,380);
+    end
+catch
+    delete(10)
+    error('Scanbox:MotorComm', ...
+        '\nCannot communicate with motor controller!\nPlease check:\n -Serial cable\n -COM port in scanbox_config\n -Power cycle controller\n\n');
 end
 
+
 dmpos = origin;                      %% desired motor position is the same as the origin
+
+mpos = cell(1,4);                      %% reset memory
+for(i=1:4)
+    mpos{i} = dmpos;
+end
+
 
 set(handles.xpos,'String','0.00')
 set(handles.ypos,'String','0.00')
@@ -546,7 +579,7 @@ configureLsb9440(boardHandle,2,3);   %% was 2,3
 
 global ltimer;  % laser timer
 
-if(~isempty(sbconfig.laser_type))    
+if(~isempty(sbconfig.laser_type))
     ltimer = timer('ExecutionMode','FixedRate','Period',5,'TimerFcn',@laser_cb);
     start(ltimer);
 end
@@ -734,7 +767,7 @@ switch sbconfig.laser_type
             laser_send(sprintf('OFF'));
         end
 end
-        
+
 if(get(hObject,'Value'))
     set(hObject,'String','Laser is on','FontWeight','bold','Value',1);
 else
@@ -795,7 +828,7 @@ switch sbconfig.laser_type;
         laser_send(sprintf('WAVELENGTH %s',get(hObject,'String')));
 end
 
- 
+
 
 
 % --- Executes during object creation, after setting all properties.
@@ -931,24 +964,24 @@ global mstep axis_sel
 
 switch(get(hObject,'Value'))
     case 1
-        v = [2000 500;   %z - max vel and acceleration
-            2000 500;   %y
-            2000 500;   %x
-            2000 500];  %a
+        v = [2000 380;   %z - max vel and acceleration
+             2000 380;   %y
+             2000 380;   %x
+             2000 380];  %a
         mstep = [500 2000 2000 500];  % step size
         
     case 2
-        v = [1500 300;
-            1500 300;
-            1500 300;
-            1500 300];
+        v = [1200 300;
+            1200 300;
+            1200 300;
+            1200 300];
         mstep = [50 200 200 50];
         
     case 3
-        v = [800 200;
-            800 200;
-            800 200;
-            800 200];
+        v = [650 200;
+            650 200;
+            650 200;
+            650 200];
         mstep = [5 20 20 5];
 end
 
@@ -1659,7 +1692,7 @@ while ~captureDone
                 chA = [255*ones([size(chA,1)/2 size(chA,2)],'uint8'); chA ; 255*ones([size(chA,1)/2 size(chA,2)],'uint8')];
         end
         
-    
+        
         if(get(handles.camerabox,'Value')==0)
             switch get(tfilter_h,'Value')
                 
@@ -1713,7 +1746,7 @@ while ~captureDone
                     end
             end
         end
-                   
+        
         
         % ttls
         
@@ -1784,7 +1817,7 @@ while ~captureDone
     
 end % while ~captureDone
 
-% 
+%
 if ~isempty(acc)
     accd =  double(acc);
     accd = ((accd-min(accd(:)))/(max(accd(:))-min(accd(:))));
@@ -1795,7 +1828,7 @@ end
 % set(ttl1,'FaceColor',[0 0 0]);
 
 set(handles.ttlonline,'ForegroundColor',[0 0 0]);
-if(fid ~= -1)    
+if(fid ~= -1)
     if(ttlonline && ~isempty(trial_acc))
         fn = sprintf('%s\\%s\\%s_%03d_%03d_trials.mat',datadir,animal,animal,unit,experiment);
         oldstr = get(handles.etime,'String');
@@ -2002,17 +2035,55 @@ function originbutton_Callback(hObject, eventdata, handles)
 
 global origin dmpos
 
-for(i=0:3)
-    r = tri_send('MVP',0,i,origin(i+1));
-    pause(0.25);
+% for(i=0:3)
+%     r = tri_send('MVP',0,i,origin(i+1));
+%     pause(0.25);
+% end
+
+for(i=0:2)
+    r = tri_send('SCO',0,i,origin(i+1));
 end
 
-dmpos = origin;
+v = zeros(3,2);
 
-set(handles.xpos,'String','0.00')
-set(handles.ypos,'String','0.00')
-set(handles.zpos,'String','0.00')
-set(handles.thpos,'String','0.00')
+for(i=0:2)                      % current vel and acc
+    r1 = tri_send('GAP',4,i,0);
+    r2 = tri_send('GAP',5,i,0);
+    v(i+1,1) = r1.value;
+    v(i+1,2) = r2.value;
+    tri_send('SAP',4,i,1200);
+    tri_send('SAP',5,i,275);
+end
+
+tri_send('MVP',2,hex2dec('87'),0);
+
+set(hObject,'ForegroundColor',[1 0 0]);
+drawnow;
+st = 0;                         % wait for movement to finish
+while(st==0)
+    st = 1;
+    for(i=0:2)
+        r = tri_send('GAP',8,i,0);
+        st = st * r.value;
+    end
+end
+set(hObject,'ForegroundColor',[0 0 0]);
+drawnow;
+
+for(i=0:2)
+    r1 = tri_send('SAP',4,i,v(i+1,1));
+    r2 = tri_send('SAP',5,i,v(i+1,2));
+end
+                        
+dmpos(1:3) = origin(1:3);
+update_pos;
+
+% set(handles.xpos,'String','0.00')
+% set(handles.ypos,'String','0.00')
+% set(handles.zpos,'String','0.00')
+% set(handles.thpos,'String','0.00')
+
+
 
 %set(hObject,'enable','off');drawnow; set(hObject,'enable','on');
 %WindowAPI(handles.scanboxfig,'setfocus')
@@ -2246,7 +2317,7 @@ function scanboxfig_CloseRequestFcn(hObject, eventdata, handles)
 
 global scanbox_h ltimer;
 
-[~, ~] = system('netsh interface set interface "Outside World" ENABLED');
+[~, ~] = system('netsh interface set interface "Local Area Connection" ENABLED');
 
 delete(ltimer);
 
@@ -3179,7 +3250,7 @@ if(qserial.bytesavailable>0)
     for(i=1:length(cmd))
         switch cmd(i)
             case 64 % x-
-                if(axis_sel ~= 2) 
+                if(axis_sel ~= 2)
                     eventdata.Character = '@';
                     scanboxfig_WindowKeyPressFcn(obj, eventdata, h);
                 end
@@ -3233,10 +3304,10 @@ if(qserial.bytesavailable>0)
             otherwise
                 
                 sw = dec2bin(cmd(i)-240,4);
-
+                
                 if(sw(1)=='0' &&  sw(2)=='0')
                     set(h.popupmenu3,'Value',3);
-                end            
+                end
                 if(sw(1)=='1' &&  sw(2)=='0')
                     set(h.popupmenu3,'Value',3);
                 end
@@ -3246,12 +3317,12 @@ if(qserial.bytesavailable>0)
                 if(sw(1)=='1' &&  sw(2)=='1')
                     set(h.popupmenu3,'Value',1);
                 end
-
+                
                 popupmenu3_Callback(h.popupmenu3, [], h);
-
+                
                 if(sw(3)=='0' &&  sw(4)=='0')
                     set(h.rotated,'Value',3);
-                end              
+                end
                 if(sw(3)=='1' &&  sw(4)=='0')
                     set(h.rotated,'Value',3);
                 end
@@ -3261,7 +3332,7 @@ if(qserial.bytesavailable>0)
                 if(sw(3)=='1' &&  sw(4)=='1')
                     set(h.rotated,'Value',1);
                 end
-               
+                
         end
     end
 end
@@ -3411,9 +3482,17 @@ function rotated_Callback(hObject, eventdata, handles)
 
 % Hint: get(hObject,'Value') returns toggle state of rotated
 
-global motormode
+global motormode motor_gain
 
 motormode = get(hObject,'Value');
+
+if(motormode == 3) % pivot
+    global xpiv zpiv dmpos sbconfig;
+    th = str2num(get(handles.thpos,'String'));
+    xpiv = dmpos(3) * motor_gain(3) + sbconfig.obj_length/motor_gain(3) *sind(th);
+    zpiv = dmpos(1) * motor_gain(1) - sbconfig.obj_length/motor_gain(1) *cosd(th);
+end
+
 
 % --- Executes on button press in pushbutton42.
 function pushbutton42_Callback(hObject, eventdata, handles)
@@ -3829,7 +3908,7 @@ switch sbconfig.laser_type
         
 end
 
-        
+
 
 
 
@@ -4026,7 +4105,7 @@ function scanboxfig_WindowKeyPressFcn(hObject, eventdata, handles)
 % handles    structure with handles and user data (see GUIDATA)
 
 
-global axis_sel mstep origin dmpos motormode sbconfig motor_gain scanbox_h
+global axis_sel mstep origin dmpos motormode sbconfig motor_gain scanbox_h xpiv zpiv
 
 % read the angle of the objective
 % this needs to be replaced by a rotary motor encoder
@@ -4060,38 +4139,48 @@ if(~get(handles.motorlock,'Value'))
                         switch(axis_sel)
                             case 0
                                 dmpos(1) = dmpos(1) + mstep(1)*cosd(th);
-                                dmpos(3) = dmpos(3) + mstep(3)*sind(th);
+                                dmpos(3) = dmpos(3) + mstep(1)*motor_gain(1)/motor_gain(3)*sind(th);
                             case 2
                                 dmpos(3) = dmpos(3) + mstep(3)*cosd(th);
-                                dmpos(1) = dmpos(1) + mstep(1)*sind(th);
+                                dmpos(1) = dmpos(1) + mstep(3)*motor_gain(3)/motor_gain(1)*sind(th);
                         end
-                        r = tri_send('MVP',0,2,dmpos(3));
-                        r = tri_send('MVP',0,0,dmpos(1));
+                        
+%                         tri_send('SCO',0,2,dmpos(3));
+%                         tri_send('SCO',0,0,dmpos(1));
+%                         tri_send('MVP',2,hex2dec('45'),0);
+                        
+                         r = tri_send('MVP',0,2,dmpos(3));
+                         r = tri_send('MVP',0,0,dmpos(1));
                     else
                         dmpos(axis_sel+1) = dmpos(axis_sel+1)-mstep(axis_sel+1);
                         r = tri_send('MVP',0,axis_sel,dmpos(axis_sel+1));
                     end
-                 
                     
-                case 3     %pivot
+                    
+                case 3     %pivot 
                     
                     if(axis_sel==3)
                         
-                        dmpos(4) = dmpos(4)-mstep(axis_sel+1);
-                        r = tri_send('MVP',0,axis_sel,dmpos(axis_sel+1));
-                        
-                        dxp_step =  mstep(4)*motor_gain(4)/(sbconfig.pivotk*motor_gain(3));
-                        
-                        dmpos(1) = dmpos(1) + dxp_step*sind(th);
-                        dmpos(3) = dmpos(3) + dxp_step*cosd(th);
-                        
-                        r = tri_send('MVP',0,2,dmpos(3)); %x
-                        r = tri_send('MVP',0,0,dmpos(1)); %z
-                        r = tri_send('MVP',0,3,dmpos(4)); %th
+                        dmpos(4) = dmpos(4)+mstep(axis_sel+1);
+                        th = dmpos(4) * motor_gain(4); 
+
+                        dmpos(1) = zpiv + sbconfig.obj_length * cosd(th) / motor_gain(1);
+                        dmpos(3) = xpiv - sbconfig.obj_length * sind(th) / motor_gain(3);
+                                              
+                        tri_send('SCO',0,0,dmpos(1));
+                        tri_send('SCO',0,2,dmpos(3));
+                        tri_send('SCO',0,3,dmpos(4));
+                        tri_send('MVP',2,hex2dec('4d'),0);
+
+                                                
+%                         r = tri_send('MVP',0,axis_sel,dmpos(axis_sel+1));               
+%                         r = tri_send('MVP',0,2,dmpos(3)); %x
+%                         r = tri_send('MVP',0,0,dmpos(1)); %z
+%                         r = tri_send('MVP',0,3,dmpos(4)); %th
                     end
-                        
+                    
             end
-    
+            
             
         case '!'
             
@@ -4108,13 +4197,18 @@ if(~get(handles.motorlock,'Value'))
                         switch(axis_sel)
                             case 0
                                 dmpos(1) = dmpos(1) - mstep(1)*cosd(th);
-                                dmpos(3) = dmpos(3) - mstep(3)*sind(th);
+                                dmpos(3) = dmpos(3) - mstep(1)*motor_gain(1)/motor_gain(3)*sind(th);
                             case 2
                                 dmpos(3) = dmpos(3) - mstep(3)*cosd(th);
-                                dmpos(1) = dmpos(1) - mstep(1)*sind(th);
+                                dmpos(1) = dmpos(1) - mstep(3)*motor_gain(3)/motor_gain(1)*sind(th);
                         end
-                        r = tri_send('MVP',0,2,dmpos(3));
-                        r = tri_send('MVP',0,0,dmpos(1));
+                        
+%                         tri_send('SCO',0,2,dmpos(3));
+%                         tri_send('SCO',0,0,dmpos(1));
+%                         tri_send('MVP',2,hex2dec('45'),0);
+                        
+                         r = tri_send('MVP',0,2,dmpos(3));
+                         r = tri_send('MVP',0,0,dmpos(1));
                     else
                         dmpos(axis_sel+1) = dmpos(axis_sel+1)+mstep(axis_sel+1);
                         r = tri_send('MVP',0,axis_sel,dmpos(axis_sel+1));
@@ -4123,40 +4217,44 @@ if(~get(handles.motorlock,'Value'))
                     
                 case 3     %pivot
                     
-                   if(axis_sel==3)
+                    if(axis_sel==3)
                         
-                        dmpos(4) = dmpos(4)+mstep(axis_sel+1);
-                        r = tri_send('MVP',0,axis_sel,dmpos(axis_sel+1));
+                        dmpos(4) = dmpos(4)-mstep(axis_sel+1);
+                        th = dmpos(4) * motor_gain(4); 
+
+                        dmpos(1) = zpiv + sbconfig.obj_length * cosd(th) / motor_gain(1);
+                        dmpos(3) = xpiv - sbconfig.obj_length * sind(th) / motor_gain(3);
                         
-                        dxp_step =  -mstep(4)*motor_gain(4)/(sbconfig.pivotk*motor_gain(3))
+                        tri_send('SCO',0,0,dmpos(1));
+                        tri_send('SCO',0,2,dmpos(3));
+                        tri_send('SCO',0,3,dmpos(4));
+                        tri_send('MVP',2,hex2dec('4d'),0);
                         
-                        dmpos(1) = dmpos(1) + dxp_step*sind(th);
-                        dmpos(3) = dmpos(3) + dxp_step*cosd(th);
-                        
-                        r = tri_send('MVP',0,2,dmpos(3)); %x
-                        r = tri_send('MVP',0,0,dmpos(1)); %z
-                        r = tri_send('MVP',0,3,dmpos(4)); %th
-                   end
+%                         r = tri_send('MVP',0,axis_sel,dmpos(axis_sel+1));
+%                         r = tri_send('MVP',0,2,dmpos(3)); %x
+%                         r = tri_send('MVP',0,0,dmpos(1)); %z
+%                         r = tri_send('MVP',0,3,dmpos(4)); %th
+                    end
                     
             end
             
             
-%             if(get(handles.rotated,'Value') && (axis_sel==2 || axis_sel==0))
-%                 switch(axis_sel)
-%                     case 0
-%                         dmpos(1) = dmpos(1) - mstep(1)*cosd(th);
-%                         dmpos(3) = dmpos(3) - mstep(3)*sind(th);
-%                         
-%                     case 2
-%                         dmpos(3) = dmpos(3) - mstep(3)*cosd(th);
-%                         dmpos(1) = dmpos(1) - mstep(1)*sind(th);
-%                 end
-%                 r = tri_send('MVP',0,2,dmpos(3));
-%                 r = tri_send('MVP',0,0,dmpos(1));
-%             else
-%                 dmpos(axis_sel+1) = dmpos(axis_sel+1)-mstep(axis_sel+1);
-%                 r = tri_send('MVP',0,axis_sel,dmpos(axis_sel+1));
-%             end
+            %             if(get(handles.rotated,'Value') && (axis_sel==2 || axis_sel==0))
+            %                 switch(axis_sel)
+            %                     case 0
+            %                         dmpos(1) = dmpos(1) - mstep(1)*cosd(th);
+            %                         dmpos(3) = dmpos(3) - mstep(3)*sind(th);
+            %
+            %                     case 2
+            %                         dmpos(3) = dmpos(3) - mstep(3)*cosd(th);
+            %                         dmpos(1) = dmpos(1) - mstep(1)*sind(th);
+            %                 end
+            %                 r = tri_send('MVP',0,2,dmpos(3));
+            %                 r = tri_send('MVP',0,0,dmpos(1));
+            %             else
+            %                 dmpos(axis_sel+1) = dmpos(axis_sel+1)-mstep(axis_sel+1);
+            %                 r = tri_send('MVP',0,axis_sel,dmpos(axis_sel+1));
+            %             end
             
         case '@'
             set(handles.xpos,'ForegroundColor',[1 0 0]);
@@ -4194,21 +4292,25 @@ if(~get(handles.motorlock,'Value'))
     
     mname = {'zpos','ypos','xpos','thpos'};
     v = zeros(1,4);
+%     for(i=0:3)
+%         r = tri_send('GAP',0,i,0);
+%         v(i+1) =  motor_gain(i+1) * double(r.value-origin(i+1));  %%  (inches/rot) / (steps/rot) * 25400um
+%     end
+
     for(i=0:3)
-        r = tri_send('GAP',0,i,0);
-        v(i+1) =  motor_gain(i+1) * double(r.value-origin(i+1));  %%  (inches/rot) / (steps/rot) * 25400um
+        v(i+1) =  motor_gain(i+1) * double(dmpos(i+1)-origin(i+1));  %%  (inches/rot) / (steps/rot) * 25400um
     end
     
-    % Translate position to rotated axis if necessary...
-    
-    if(motormode~=1)
-        R = [cosd(th) sind(th);-sind(th) cosd(th)];
-        if(axis_sel==0)
-            R = inv(R);
-        end
-        vp = R* v([3 1])';
-        v(3) = vp(1); v(1) = vp(2);
-    end
+    %     % Translate position to rotated axis if necessary...
+    %
+    %     if(motormode~=1)
+    %         R = [cosd(th) sind(th);-sind(th) cosd(th)];
+    %         if(axis_sel==0)
+    %             R = inv(R);
+    %         end
+    %         vp = R* v([3 1])';
+    %         v(3) = vp(1); v(1) = vp(2);
+    %     end
     
     % Write the positions...
     
@@ -4217,6 +4319,7 @@ if(~get(handles.motorlock,'Value'))
         set(h,'String',sprintf('%.2f',v(i+1)));
         drawnow;
     end
+    
     
 end
 
@@ -5277,3 +5380,301 @@ function ttlonline_Callback(hObject, eventdata, handles)
 global ttlonline;
 
 ttlonline = get(hObject,'Value');
+
+
+% --- Executes on button press in pushbutton60.
+function pushbutton60_Callback(hObject, eventdata, handles)
+% hObject    handle to pushbutton60 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+global dmpos mpos;
+mpos{1} = dmpos;
+
+% for(i=0:3) 
+%     tri_send('CCO',11,i,0);
+% end
+
+
+
+% --- Executes on button press in pushbutton61.
+function pushbutton61_Callback(hObject, eventdata, handles)
+% hObject    handle to pushbutton61 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+global mpos dmpos;
+
+for(i=0:3)
+   tri_send('SCO',0,i,mpos{1}(i+1));
+end
+
+v = zeros(4,2);
+
+for(i=0:3)                      % current vel and acc
+    r1 = tri_send('GAP',4,i,0);
+    r2 = tri_send('GAP',5,i,0);
+    v(i+1,1) = r1.value;
+    v(i+1,2) = r2.value;
+    tri_send('SAP',4,i,1200);
+    tri_send('SAP',5,i,275);
+end
+
+tri_send('MVP',2,hex2dec('8f'),0);
+
+set(hObject,'ForegroundColor',[1 0 0]);
+drawnow;
+st = 0;                         % wait for movement to finish
+while(st==0)
+    st = 1;
+    for(i=0:3)
+        r = tri_send('GAP',8,i,0);
+        st = st * r.value;
+    end
+end
+set(hObject,'ForegroundColor',[0 0 0]);
+drawnow;
+
+
+for(i=0:3)
+    r1 = tri_send('SAP',4,i,v(i+1,1));
+    r2 = tri_send('SAP',5,i,v(i+1,2));
+end
+
+dmpos = mpos{1};
+update_pos;    
+
+                        
+% --- Executes on button press in pushbutton62.
+function pushbutton62_Callback(hObject, eventdata, handles)
+% hObject    handle to pushbutton62 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+global dmpos mpos;
+mpos{2} = dmpos;
+
+% for(i=0:3) 
+%     tri_send('CCO',12,i,0);
+% end
+
+% --- Executes on button press in pushbutton63.
+function pushbutton63_Callback(hObject, eventdata, handles)
+% hObject    handle to pushbutton63 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+global mpos dmpos;
+
+global mpos dmpos;
+
+for(i=0:3)
+   tri_send('SCO',0,i,mpos{2}(i+1));
+end
+
+v = zeros(4,2);
+
+for(i=0:3)                      % current vel and acc
+    r1 = tri_send('GAP',4,i,0);
+    r2 = tri_send('GAP',5,i,0);
+    v(i+1,1) = r1.value;
+    v(i+1,2) = r2.value;
+    tri_send('SAP',4,i,1200);
+    tri_send('SAP',5,i,275);
+end
+
+tri_send('MVP',2,hex2dec('8f'),0);
+
+set(hObject,'ForegroundColor',[1 0 0]);
+drawnow;
+st = 0;                         % wait for movement to finish
+while(st==0)
+    st = 1;
+    for(i=0:3)
+        r = tri_send('GAP',8,i,0);
+        st = st * r.value;
+    end
+end
+set(hObject,'ForegroundColor',[0 0 0]);
+drawnow;
+
+for(i=0:3)
+    r1 = tri_send('SAP',4,i,v(i+1,1));
+    r2 = tri_send('SAP',5,i,v(i+1,2));
+end
+
+dmpos = mpos{2};
+update_pos;    
+
+
+% --- Executes on button press in pushbutton64.
+function pushbutton64_Callback(hObject, eventdata, handles)
+% hObject    handle to pushbutton64 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+global dmpos mpos;
+mpos{3} = dmpos;
+
+% for(i=0:3) 
+%     tri_send('CCO',13,i,0);
+% end
+
+% --- Executes on button press in pushbutton65.
+function pushbutton65_Callback(hObject, eventdata, handles)
+% hObject    handle to pushbutton65 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+global mpos dmpos;
+
+for(i=0:3)
+   tri_send('SCO',0,i,mpos{3}(i+1));
+end
+
+v = zeros(4,2);
+
+for(i=0:3)                      % current vel and acc
+    r1 = tri_send('GAP',4,i,0);
+    r2 = tri_send('GAP',5,i,0);
+    v(i+1,1) = r1.value;
+    v(i+1,2) = r2.value;
+    tri_send('SAP',4,i,1200);
+    tri_send('SAP',5,i,275);
+end
+
+tri_send('MVP',2,hex2dec('8f'),0);
+
+set(hObject,'ForegroundColor',[1 0 0]);
+drawnow;
+st = 0;                         % wait for movement to finish
+while(st==0)
+    st = 1;
+    for(i=0:3)
+        r = tri_send('GAP',8,i,0);
+        st = st * r.value;
+    end
+end
+set(hObject,'ForegroundColor',[0 0 0]);
+drawnow;
+
+for(i=0:3)
+    r1 = tri_send('SAP',4,i,v(i+1,1));
+    r2 = tri_send('SAP',5,i,v(i+1,2));
+end
+
+dmpos = mpos{3};
+update_pos;    
+
+
+% --- Executes on button press in pushbutton66.
+function pushbutton66_Callback(hObject, eventdata, handles)
+% hObject    handle to pushbutton66 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+global dmpos mpos;
+mpos{4} = dmpos;
+
+% for(i=0:3) 
+%     tri_send('CCO',14,i,0);
+% end
+
+% --- Executes on button press in pushbutton67.
+function pushbutton67_Callback(hObject, eventdata, handles)
+% hObject    handle to pushbutton67 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+global mpos dmpos;
+
+for(i=0:3)
+   tri_send('SCO',0,i,mpos{4}(i+1));
+end
+
+v = zeros(4,2);
+
+for(i=0:3)                      % current vel and acc
+    r1 = tri_send('GAP',4,i,0);
+    r2 = tri_send('GAP',5,i,0);
+    v(i+1,1) = r1.value;
+    v(i+1,2) = r2.value;
+    tri_send('SAP',4,i,1200);
+    tri_send('SAP',5,i,275);
+end
+
+tri_send('MVP',2,hex2dec('8f'),0);
+
+set(hObject,'ForegroundColor',[1 0 0]);
+drawnow;
+st = 0;                         % wait for movement to finish
+while(st==0)
+    st = 1;
+    for(i=0:3)
+        r = tri_send('GAP',8,i,0);
+        st = st * r.value;
+    end
+end
+set(hObject,'ForegroundColor',[0 0 0]);
+drawnow;
+
+for(i=0:3)
+    r1 = tri_send('SAP',4,i,v(i+1,1));
+    r2 = tri_send('SAP',5,i,v(i+1,2));
+end
+
+dmpos = mpos{4};
+update_pos;    
+
+
+
+
+function update_pos
+
+global dmpos motor_gain origin scanbox_h; 
+
+    mname = {'zpos','ypos','xpos','thpos'};
+    v = zeros(1,4);
+    
+    for(i=0:3)
+        v(i+1) =  motor_gain(i+1) * double(dmpos(i+1)-origin(i+1));  %%  (inches/rot) / (steps/rot) * 25400um
+    end
+
+    for(i=0:3)
+        h = findobj(scanbox_h,'Tag',mname{i+1});
+        set(h,'String',sprintf('%.2f',v(i+1)));
+        drawnow;
+    end
+    
+    
+
+
+% --- Executes on button press in pushbutton68.
+function pushbutton68_Callback(hObject, eventdata, handles)
+% hObject    handle to pushbutton68 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+global origin dmpos
+
+for(i=0:2)
+    r = tri_send('GAP',0,i,0);
+    origin(i+1) = r.value;
+end
+
+dmpos(1:3) = origin(1:3);
+update_pos;
+
+
+% --- Executes on button press in text76.
+function text76_Callback(hObject, eventdata, handles)
+% hObject    handle to text76 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+
+% --- Executes on button press in text77.
+function text77_Callback(hObject, eventdata, handles)
+% hObject    handle to text77 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
