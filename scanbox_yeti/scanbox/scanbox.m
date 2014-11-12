@@ -22,7 +22,7 @@ function varargout = scanbox(varargin)
 
 % Edit the above text to modify the response to help scanbox
 
-% Last Modified by GUIDE v2.5 24-Jul-2014 09:19:20
+% Last Modified by GUIDE v2.5 30-Oct-2014 08:05:02
 
 % Begin initialization code - DO NOT EDIT
 gui_Singleton = 1;
@@ -44,6 +44,7 @@ end
 % End initialization code - DO NOT EDIT
 
 
+
 % --- Executes just before scanbox is made visible.
 function scanbox_OpeningFcn(hObject, eventdata, handles, varargin)
 % This function has no output args, see OutputFcn.
@@ -60,45 +61,88 @@ guidata(hObject, handles);
 
 % Make sure ethernet connection to outside world is disabled...
 
-[~, ~] = system('netsh interface set interface "Local Area Connection" DISABLED');
+[~, ~] = system('netsh interface set interface "The World" DISABLED');
 
 % Config options...
 
 % Run the lines in the config file
 
-h = figure(10); %create flash window...
-p = WindowAPI(h,'monitor');
-WindowAPI(h,'Position',[p.Position(3:4)/2 - [200 100] 400 200])
-WindowAPI(h,'Alpha',0.9)
-WindowAPI(h,'Clip')
-WindowAPI(h,'TopMost')
-sbt = text(0.5, 0.5, 'Scanbox 1.2', ...
+figure(10); %create flash window...
+set(10,'color',[.4 .4 .4]);
+p = WindowAPI(10,'monitor');
+WindowAPI(10,'Position',[p.Position(3:4)/2 - [200 100] 400 200]);
+WindowAPI(10,'Alpha',0.9)
+WindowAPI(10,'Clip')
+WindowAPI(10,'TopMost')
+sbt = text(0.5, 0.5, 'Scanbox Yeti (beta)', ...
     'Units',    'normalized', ...
     'FontSize', 24, ...
+    'FontName', 'Verdana', ...
     'HorizontalAlignment', 'center', ...
+    'Color', [1 .7 .7], ...
     'Margin',   12);
+sbt2 = text(0.5, 0.25, 'by Dario Ringach', ...
+    'Units',    'normalized', ...
+    'FontSize', 12, ...
+    'FontName', 'Verdana', ...
+    'HorizontalAlignment', 'center', ...
+    'Color', [.9 .9 .9], ...
+    'Margin',   12);
+
 axis off;
 
-pause(1);
+pause(1.5);
 
-set(sbt,'FontSize',18,'Color',[0.8 0.1 0.1]);
+set(sbt,'FontSize',18,'Color',[0.9 0.9 0.9]);
 set(sbt,'String','Reading configuration file...'); drawnow;
 
-fid = fopen('C:\scanbox\scanbox_config.m');
-cmd = fgetl(fid);
-while(cmd ~= -1)
-    eval(cmd);
-    cmd = fgetl(fid);
-end
-fclose(fid);
+scanbox_config;     % configuration file
 
-global sbconfig;
+% global sbconfig;
+% fid = fopen('C:\scanbox\scanbox_config.m');
+% cmd = fgetl(fid);
+% while(cmd ~= -1)
+%     eval(cmd);
+%     cmd = fgetl(fid);
+% end
+% fclose(fid);
+
+
+% dial ...
+
+
 
 % scanbox_config;
 
 % gray out optional boxes...
 
 set(sbt,'String','Setting panels...'); drawnow;
+
+
+% analog out
+
+if(isempty(sbconfig.analog))
+    set(handles.analogout,'Enable','off');
+else
+    global ao;
+    ao = daq.createSession(sbconfig.analog)
+    addAnalogOutputChannel(ao,'Dev1',sbconfig.analog_chan,'Voltage');
+end
+
+% network stream
+
+if(isempty(sbconfig.stream_host))
+    set(handles.networkstream,'Enable','off');
+else
+    
+    global stream_udp;
+    
+    if(~isempty(stream_udp))
+        fclose(stream_udp);
+        stream_udp = [];
+    end   
+end
+
 
 if(sbconfig.optotune == 0)
     ch = get(handles.otpanel,'children');
@@ -165,7 +209,14 @@ set(sbt,'String','Opening scanbox'); drawnow;
 sb_open;
 
 set(sbt,'String','Set interrupt mask'); drawnow;
+try
 sb_imask(sbconfig.imask);
+catch
+    set(sbt,'String','Quit Matlab & Reset Scanbox'); drawnow;
+    pause(4);
+    quit force;
+end
+
 
 set(sbt,'String','Opening motor controller'); drawnow;
 tri_open;
@@ -198,6 +249,9 @@ warning('off');
 global ttlonline;
 ttlonline=0;
 
+global zstack_running;
+zstack_running = 0;
+
 % motor variables init...
 
 global axis_sel origin motor_gain mstep dmpos motormode mpos;
@@ -212,7 +266,7 @@ mstep = [500 2000 2000 500];  % initialize with step sizes for coarse...
 
 
 % % reset the memories...
-% 
+%
 % for(j=1:4)
 %     for(i=0:3)
 %         tri_send('CCO',3,i,0);
@@ -573,6 +627,17 @@ set(sbt,'String','Configuring TTLs'); drawnow;
 
 configureLsb9440(boardHandle,2,3);   %% was 2,3
 
+if(sbconfig.nroi_parallel)
+    set(sbt,'String','Starting parallel pool'); drawnow;
+    parpool(sbconfig.nroi_auto);
+end
+
+if(sbconfig.gpu_pages>0)
+    set(sbt,'String','Reset GPU'); drawnow;
+    reset(gpuDevice(sbconfig.gpu_dev));   %% was 2,3
+end
+
+
 % update laser status
 
 % set(handles.lstatus,'String',laser_status);
@@ -590,12 +655,18 @@ if(sbconfig.qmotion==1)
     fopen(qserial);
 end
 
+%real time ROIs
+
+global ncell cellpoly;
+
+ncell = 0;
+cellpoly = {};
 
 % Done with daq configuration .... !!!!
 
 set(sbt,'String','Done!'); drawnow;
 pause(0.5);
-close(h);
+close(10);
 
 
 % UIWAIT makes scanbox wait for user response (see UIRESUME)
@@ -663,6 +734,7 @@ else
     frame_rate = sbconfig.resfreq/nlines; %% use actual resonant freq...
     set(handles.frate,'String',sprintf('%2.2f',frame_rate));
 end
+
 
 
 % --- Executes during object creation, after setting all properties.
@@ -965,9 +1037,9 @@ global mstep axis_sel
 switch(get(hObject,'Value'))
     case 1
         v = [2000 380;   %z - max vel and acceleration
-             2000 380;   %y
-             2000 380;   %x
-             2000 380];  %a
+            2000 380;   %y
+            2000 380;   %x
+            2000 380];  %a
         mstep = [500 2000 2000 500];  % step size
         
     case 2
@@ -1267,7 +1339,7 @@ global wcam eyecam sbconfig;
 
 
 wf=0;
-swrn = 'Fix the following before imaging:';
+swrn = 'Correct the following before imaging:';
 
 if(~isempty(sbconfig.laser_type))
     
@@ -1364,6 +1436,8 @@ end
 % set lines/mag/frames
 
 lines  = str2num(get(handles.lines,'String'));
+global nlines;
+nlines = lines;
 mag = get(handles.magnification,'Value')-1;
 sb_setparam(lines,frames,mag);
 
@@ -1502,7 +1576,10 @@ global wcamlog eyecamlog;
 global wcam_roi eye_roi;
 global sbconfig;
 global ttlonline;
-
+global trace_idx trace_period cellpoly roi_traces_h;
+global ref_img;
+global gtime gData nlines;
+global stream_udp;
 
 % if(get(handles.wc,'Value'))
 %     set(wcam,'LoggingMode','memory');
@@ -1560,17 +1637,69 @@ if(~isempty(sbconfig.laser_type))
     stop(ltimer);
 end
 
-sb_scan;   % start scanning!
+delete(get(roi_traces_h,'Children')); % remove children...
+nroi = length(get(handles.blist,'String'));
+ydata = cell(1,nroi);
+if(nroi>0)
+    stream_data = zeros(1,nroi+3,'int16');
+    roiidx = cellfun(@str2num,get(handles.blist,'String'));
+    roipix = cell(1,length(roiidx));
+    hold(roi_traces_h,'on');
+    plot(roi_traces_h,[1 1],[-4 nroi*4],'r:','linewidth',1);
+    set(roi_traces_h,'Ylim',[-4 nroi*4],'Xlim',[1 300]); % 4 std apart...
+    trace_idx = 1;
+    for(i=1:length(roiidx))
+        roipix{i} = find(createMask(cellpoly{roiidx(i)}));
+        plot(roi_traces_h,1:trace_period,NaN*ones(1,trace_period),'color',[0 0 0.5]);
+        ydata{i} = NaN*ones(1,trace_period);
+    end
+    
+    hold(roi_traces_h,'off');
+    %disable poly view
+    for(i=1:length(cellpoly))
+        set(cellpoly{i},'Visible','off');
+    end
+    ch = get(roi_traces_h,'Children');
+    vch = ch(end);
+    rmean = zeros(1,nroi);  %mean and variance (recursive)
+    rvar = zeros(1,nroi);
+    rtdata = zeros(sbconfig.rtmax,nroi);
+end
 
-%set(handles.scanboxfig,'enable','off'); drawnow; set(handles.scanboxfig,'enable','on');
-%WindowAPI(handles.scanboxfig,'setfocus');
+% allocate for online alignment
 
-%S = sparseint;
+global T;
+Talign = zeros(sbconfig.rtmax,2*sbconfig.nroi_auto);
 
 S = pixel_lut;
-f_lap = fspecial('laplacian',.5);   % for ball tracking...
 
-tic;
+% % prepare analog output
+% %
+% ao = daq.createSession('ni')
+% addAnalogOutputChannel(ao,'Dev1',0,'Voltage');
+% %
+
+L = []; % list of patches and indices for roi stim patch visualization
+I = [];
+
+if(sbconfig.gpu_pages>0)
+    % allocate memory...
+    global nlines;
+    if(nlines~=size(gData,2) || sbconfig.gpu_pages~=size(gData,1))
+        gData = zeros([sbconfig.gpu_pages nlines length(pixel_lut) ],'single','gpuArray');
+    end
+    gtime = 1; % next to be filled
+    gData = gData.*gData;                % warm up...
+end
+
+stream_flag = get(handles.networkstream,'Value');
+stim_flag = get(handles.stimmark,'Value');
+
+if(sbconfig.sim_mode)
+    sim_data = intmax('uint16')-squeeze(sbxread(sbconfig.sim_file,1,sbconfig.sim_nframes));
+end
+
+sb_scan;   % start scanning!
 
 while ~captureDone
     
@@ -1603,21 +1732,48 @@ while ~captureDone
     
     if bufferFull
         
-        setdatatype(bufferOut, 'uint16Ptr', 1, samplesPerBuffer);  %% keep bytes separate
+        setdatatype(bufferOut, 'uint16Ptr', 1, samplesPerBuffer);  %% keep bytes separate        
+                
+        % re-arrange data
         
+        chAB = reshape(bufferOut.Value,[2 4 1250 recordsPerBuffer]);
+        ttlflagnew = bitand(chAB(1),uint16(3));
+        
+        chAB = sum(bitshift(chAB,-2),2,'native');
+                        
+        chA = squeeze(chAB(1,1,S,:));                                 % extract channels
+        chB = squeeze(chAB(2,1,S,:));
+        
+        if(sbconfig.sim_mode)
+            chA = sim_data(:,:,mod(buffersCompleted,sbconfig.sim_nframes)+1)';
+            if(buffersCompleted<100)
+                chA = circshift(chA,round(.5*randn(1,2)));
+            else
+                chA = circshift(chA,[round(2*randn+4*cos((buffersCompleted-100)/20*2*pi))  round(2*randn+4*sin((buffersCompleted-100)/15*2*pi))]);
+            end
+        end
+  
         % Save the buffer to file
         
         if fid ~= -1
             switch(savesel)
                 case 1
-                    fwrite(fid, bufferOut.Value,'uint16');
+                    fwrite(fid,chAB,'uint16');
                 case 2
-                    tmp = reshape(bufferOut.Value,[2 length(bufferOut.Value)/2]);
-                    fwrite(fid, tmp(1,:),'uint16');
+                    fwrite(fid,chA,'uint16');
                 case 3
-                    tmp = reshape(bufferOut.Value,[2 length(bufferOut.Value)/2]);
-                    fwrite(fid, tmp(2,:),'uint16');
+                    fwrite(fid,chB,'uint16');
             end
+        end
+
+        % stabilize 
+        if(get(handles.stabilize,'Value'))
+            [u,v] = fftalignauto(double(chA'));
+            um = round(median(u));
+            vm = round(median(v));
+            chA = circshift(chA,[vm um]);
+            chB = circshift(chB,[vm um]);
+            Talign(buffersCompleted+1,:) = [u v];
         end
         
         % draw image
@@ -1625,49 +1781,29 @@ while ~captureDone
         switch(get(pmtdisp_h,'Value'))
             
             case 1    % PMT0
+                                
+                chA = squeeze(uint8(bitshift(chA,-8)))';            % pull out MSB
                 
-                chA = reshape(bufferOut.Value,[2 4 1250 recordsPerBuffer]);
+                % log to gpu - only for ChA...
                 
-                %                 ttl0s = any(bitand(chA(:),uint16(1)));
-                %                 ttl1s = any(bitand(chA(:),uint16(2)));
-                
-                %                 ttl = bitand(squeeze(chA(1,1,1,end)),uint16(3));
-                %                 chA = squeeze(mean(chA(1,:,:,:),2))' /256;
-                %                 chA = uint8(chA*S);
-                
-                % Faster code replaces the above...
-                
-                chA = squeeze(uint8(bitshift(chA(1,1,S,:),-8)))';
-                
-                
+                if(sbconfig.gpu_pages>0)
+                    if(gtime<=sbconfig.gpu_pages)
+                        if(mod(buffersCompleted+1,sbconfig.gpu_interval)==0)
+                            gData(gtime,:,:) = single(chA);
+                            gtime = gtime+1;
+                        end
+                    end
+                end
+                 
             case 2    % PMT1
                 
-                chA = reshape(bufferOut.Value,[2 4 1250 recordsPerBuffer]);
+                chA = squeeze(uint8(bitshift(chB,-8)))';
+ 
                 
-                %                 ttl0s = any(bitand(chA(:),uint16(1)));
-                %                 ttl1s = any(bitand(chA(:),uint16(2)));
-                
-                %                 ttl = bitand(squeeze(chA(1,1,1,end)),uint16(3));
-                %                 chA = squeeze(mean(chA(2,:,:,:),2))' /256;
-                %                 chA = uint8(chA*S);
-                
-                chA = squeeze(uint8(bitshift(chA(2,1,S,:),-8)))';
-                
-            case 3 % MERGED
-                
-                chA = reshape(bufferOut.Value,[2 4 1250 recordsPerBuffer]);
-                
-                %                 ttl0s = any(bitand(chA(:),uint16(1)));
-                %                 ttl1s = any(bitand(chA(:),uint16(2)));
-                
-                
-                %                 chA = squeeze(mean(chA,2))/256;
-                %                 chAf = squeeze(chA(1,:,:))' * S;
-                %                 chBf = squeeze(chA(2,:,:))' * S;
-                %                 %chA = imfuse(chAf,chBf);
-                
-                chAf = squeeze(uint8(bitshift(chA(1,1,S,:),-8)))';
-                chBf = squeeze(uint8(bitshift(chA(2,1,S,:),-8)))';
+            case 3 % MERGED - these are not logged to gpu
+                                
+                chAf = squeeze(uint8(bitshift(chA,-8)))';
+                chBf = squeeze(uint8(bitshift(chB,-8)))';
                 
                 chA = zeros([size(chAf) 3],'uint8');
                 chA(:,:,2) = 255-chAf;
@@ -1675,29 +1811,23 @@ while ~captureDone
                 
             case 4 %SIDE BY SIDE
                 
-                chA = reshape(bufferOut.Value,[2 4 1250 recordsPerBuffer]);
-                
-                %                 ttl0s = any(bitand(chA(:),uint16(1)));
-                %                 ttl1s = any(bitand(chA(:),uint16(2)));
-                
-                %                 chA = floor(squeeze(mean(chA,2))/512);
-                %                 chAf = uint8(squeeze(chA(1,:,:))' * S);
-                %                 chBf = uint8(squeeze(chA(2,:,:))' * S);
-                
-                chAf = squeeze(uint8(bitshift(chA(1,1,S,:),-8)))';
-                chBf = squeeze(uint8(bitshift(chA(2,1,S,:),-8)))';
+                chAf = squeeze(uint8(bitshift(chA,-8)))';
+                chBf = squeeze(uint8(bitshift(chB,-8)))';
                 
                 chA = [chAf (128+chBf)] ;
                 chA = chA(1:2:end,1:2:end);
                 chA = [255*ones([size(chA,1)/2 size(chA,2)],'uint8'); chA ; 255*ones([size(chA,1)/2 size(chA,2)],'uint8')];
         end
         
+  
         
         if(get(handles.camerabox,'Value')==0)
+            
             switch get(tfilter_h,'Value')
                 
                 case 1
                     set(img0_h,'Cdata',chA);
+                    
                 case 2
                     
                     if(isempty(acc))
@@ -1720,13 +1850,14 @@ while ~captureDone
             end
         end
         
+        % stimulus present in this frame?
+
         
         if(fid~=-1 && ttlonline)
             switch(ttlflag)
                 case 0
-                    if(bitand(bufferOut.Value(1),uint16(3)))
+                    if(ttlflagnew)
                         set(handles.ttlonline,'ForegroundColor',[1 0 0]);
-                        ttlflag = 1;
                         if(~isempty(acc))
                             acc = [];
                             nacc = 0;
@@ -1734,7 +1865,7 @@ while ~captureDone
                     end
                     
                 case 1
-                    if(bitand(bufferOut.Value(1),uint16(3))==0)
+                    if(ttlflagnew==0)
                         set(handles.ttlonline,'ForegroundColor',[0 0 0]);
                         if(~isempty(acc))
                             trial_acc{end+1} = acc;
@@ -1742,27 +1873,86 @@ while ~captureDone
                             acc = [];
                             nacc = 0;
                         end
-                        ttlflag = 0;
                     end
             end
         end
         
+        if(nroi>0)
+                 
+            % check if we need to remove anything...
+            jj=1;
+            while(jj<length(L))
+                if(I(jj,1)<=trace_idx && I(jj,2)>=trace_idx)
+                    I(jj,1) = trace_idx;
+                    if(I(jj,1) == I(jj,2))
+                        I(jj,:) = [];
+                        delete(L(jj));
+                        L(jj) = [];
+                    else
+                        set(L(jj),'xdata',[I(jj,1) I(jj,1) I(jj,2) I(jj,2)]);
+                        break;
+                    end
+                end
+                jj = jj+1;
+            end
+            
+            
+            % check if we need to add a new stim...
+
+            if(stim_flag)
+                if(ttlflag == 0)
+                    if(ttlflagnew ~= 0)
+                        L(end+1) = patch([trace_idx trace_idx trace_idx trace_idx],[-4 nroi*4 nroi*4 -4],[0.85 .85 1],'edgecolor',0.941*[1 1 1],'parent',roi_traces_h);
+                        uistack(L(end),'bottom');
+                        I(end+1,:) = [trace_idx trace_idx];
+                    end
+                else % or extend it...
+                    I(end,2) = trace_idx;
+                    set(L(end),'xdata',[I(end,1) I(end,1) I(end,2) I(end,2)]);
+                    % and wrap around
+                    if(trace_idx==trace_period)
+                        L(end+1) = patch([1 1 1 1],[-4 nroi*4 nroi*4 -4],[0.85 0.85 1],'edgecolor',0.941*[1 1 1],'parent',roi_traces_h);
+                        uistack(L(end),'bottom');
+                        I(end+1,:) = [1 1];
+                    end
+                end
+            end
+            
+            for(k=1:nroi)
+                roiv = mean(chA(roipix{k}));
+                t = buffersCompleted+1;
+                rtdata(t,k) = roiv;
+                if(t==1)
+                    rmean(k) = roiv;
+                    ydata{k}(trace_idx) = 4*(k-1);
+                else
+                    rmean(k) = ((t-1)*rmean(k) + roiv)/t;
+                    rvar(k)  =  (t-1)/t * rvar(k) + (roiv-rmean(k))^2 / (t-1);
+                    tmp = (roiv-rmean(k))/sqrt(rvar(k));
+                    ydata{k}(trace_idx) = 4*(k-1) + tmp;
+                    stream_data(k+2) = int16(tmp*1000);
+                    %                                         if(k==1)
+                    %                                             ao.outputSingleScan(-(roiv-rmean(k))/sqrt(rvar(k))/10);
+                    %                                         end
+                end
+                set(ch(k),'Ydata',ydata{k});
+            end
+            trace_idx = mod(trace_idx,trace_period)+1;
+            set(vch,'Xdata',[trace_idx trace_idx]);
+        end
         
-        % ttls
-        
-        %         if(ttl0s)
-        %             set(ttl0,'FaceColor',[0 1 0]);
-        %         else
-        %             set(ttl0,'FaceColor',[0 0 0]);
-        %         end
-        %
-        %         if(ttl1s)
-        %             set(ttl1,'FaceColor',[0 1 0]);
-        %         else
-        %             set(ttl1,'FaceColor',[0 0 0]);
-        %         end
-        
-        drawnow ;   % damn important!!! to dispatch abort commands...
+        ttlflag = ttlflagnew;           % update flag status
+     
+        if(nroi>0 && stream_flag)
+            stream_data(1)= buffersCompleted;
+            stream_data(2) = nroi;
+            stream_data(end) = ttlflag;
+            fwrite(stream_udp,stream_data,'int16');
+        end
+               
+        if(mod(buffersCompleted,sbconfig.dinterval))
+            drawnow ;   % damn important!!! to dispatch abort commands...
+        end
         
         % Make the buffer available to be filled again by the board
         retCode = calllib('ATSApi', 'AlazarPostAsyncBuffer', boardHandle, pbuffer, uint32(bytesPerBuffer));
@@ -1792,30 +1982,20 @@ while ~captureDone
     
     set(handles.etime,'String',sprintf('%06d -- %s',buffersCompleted, datestr(datenum(0,0,0,0,0,toc),'HH:MM:SS')));
     
-    % Are we tracking the ball?
-    
-    % We are now streaming to disk...
-    
-    %     if(get(handles.wc,'Value'))
-    %         if(wcam.FramesAvailable>2)
-    %             wcdata = getdata(wcam,wcam.FramesAvailable);
-    %             global z1;
-    %             z1 = squeeze(wcdata(:,:,end-1));
-    %             z2 = squeeze(wcdata(:,:,end-2));
-    %             z1 = filter2(f_lap,z1,'valid');
-    %             z2 = filter2(f_lap,z2,'valid');
-    %             c=fftshift(real(ifft2(fft2(z1).*fft2(rot90(z2,2)))));
-    %             idx = find(max(c(:))==c);
-    %             [imax,jmax] = ind2sub(size(z1),idx);
-    %
-    %             set(ballarrow,'X',[ballpos(1) ballpos(1)+(jmax-size(z1,2)/2)/400] ,'Y' ,[ballpos(2) ballpos(2)+(imax-size(z1,1)/2)/400]);
-    %             ballmotion(buffersCompleted,:) = [(jmax-size(z1,2)/2) (imax-size(z1,1)/2)];
-    %         else
-    %             ballmotion(buffersCompleted,:) = [NaN NaN];
-    %         end
-    %     end
-    
 end % while ~captureDone
+
+sb_abort; % stop scanning
+
+if(sbconfig.gpu_pages>0)
+   	gtime = max(1,gtime-1);            % last index
+    % gData = gData(1:gtime,:,:); % drop the rest
+end
+
+% restore...
+
+for(i=1:length(cellpoly))
+    set(cellpoly{i},'Visible','on');
+end
 
 %
 if ~isempty(acc)
@@ -1823,9 +2003,6 @@ if ~isempty(acc)
     accd = ((accd-min(accd(:)))/(max(accd(:))-min(accd(:))));
     set(img0_h,'Cdata',uint8(255*accd));
 end
-
-% set(ttl0,'FaceColor',[0 0 0]);  % reset TTL signal viewer
-% set(ttl1,'FaceColor',[0 0 0]);
 
 set(handles.ttlonline,'ForegroundColor',[0 0 0]);
 if(fid ~= -1)
@@ -1839,6 +2016,40 @@ if(fid ~= -1)
         set(handles.etime,'String',oldstr,'ForegroundColor',[0 0 0]);
     end
 end
+
+
+% save real time  data....
+
+if(fid ~= -1)
+    if(nroi>0)
+        fn = sprintf('%s\\%s\\%s_%03d_%03d_realtime.mat',datadir,animal,animal,unit,experiment);
+        oldstr = get(handles.etime,'String');
+        set(handles.etime,'String','Saving realtime signals','ForegroundColor',[1 0 0]);
+        drawnow;
+        rtdata = rtdata(1:buffersCompleted,:);
+        save(fn,'rtdata');
+        clear rtdata;
+        set(handles.etime,'String',oldstr,'ForegroundColor',[0 0 0]);
+    end
+end
+
+
+% save real time alignment....
+
+if(fid ~= -1)
+    if(get(handles.stabilize,'Value'))
+        fn = sprintf('%s\\%s\\%s_%03d_%03d_align.mat',datadir,animal,animal,unit,experiment);
+        oldstr = get(handles.etime,'String');
+        set(handles.etime,'String','Saving alignment','ForegroundColor',[1 0 0]);
+        drawnow;
+        Talign = Talign(1:buffersCompleted,:);
+        global xref yref;
+        save(fn,'Talign','ref_img','xref','yref');
+        clear T;
+        set(handles.etime,'String',oldstr,'ForegroundColor',[0 0 0]);
+    end
+end
+
 
 if(fid ~= -1)
     
@@ -1862,7 +2073,7 @@ if(fid ~= -1)
     
     if(get(handles.wc,'Value') || get(handles.eyet,'Value'))
         oldstr = get(handles.etime,'String');
-        set(handles.etime,'String','Saving tracking data...','ForegroundColor',[1 0 0]);
+        set(handles.etime,'String','Saving tracking data','ForegroundColor',[1 0 0]);
         drawnow;
         
         if(get(handles.wc,'Value')) % write wcam data...
@@ -1936,6 +2147,7 @@ if fid ~= -1
     info.channels = get(handles.savesel,'Value');
     info.ballmotion = ballmotion;
     info.abort_bit = abort_bit;
+    info.scanbox_version = 2;
     info.config = scanbox_getconfig;
     
     % save any messages too...
@@ -2009,21 +2221,45 @@ function zerobutton_Callback(hObject, eventdata, handles)
 
 global origin dmpos
 
-for(i=0:3)
-    r = tri_send('GAP',0,i,0);
-    origin(i+1) = r.value;
+choice = questdlg('Warning! This action will bring the objective to its vertical position. Make sure there is space around for it to move. Do you want to proceed?', ...
+    'scanbox', ...
+    'Yes','No','No');
+% Handle response
+switch choice
+    case 'Yes'
+        set(hObject,'ForegroundColor',[1 0 0]);
+        drawnow;
+        
+        tri_send('RUN',0,0,0);
+        r = tri_send('GAS',0,0,0);      % wait for application to stop
+        while(r.value ~= 0)
+            r = tri_send('GAS',0,0,0);
+        end
+        
+        for(i=0:3)
+            r = tri_send('GAP',0,i,0);
+            origin(i+1) = r.value;
+        end
+        
+        dmpos = origin;
+        
+        set(handles.xpos,'String','0.00');
+        set(handles.ypos,'String','0.00');
+        set(handles.zpos,'String','0.00');
+        set(handles.thpos,'String','0.00');
+        
+        set(hObject,'ForegroundColor',[0 0 0]);
+        drawnow;
+        
+        
+        
+        %set(hObject,'enable','off'); drawnow; set(hObject,'enable','on');
+        %WindowAPI(handles.scanboxfig,'setfocus')
+    case 'No'
 end
 
-dmpos = origin;
-
-set(handles.xpos,'String','0.00');
-set(handles.ypos,'String','0.00');
-set(handles.zpos,'String','0.00');
-set(handles.thpos,'String','0.00');
 
 
-%set(hObject,'enable','off'); drawnow; set(hObject,'enable','on');
-%WindowAPI(handles.scanboxfig,'setfocus')
 
 
 % --- Executes on button press in originbutton.
@@ -2074,7 +2310,7 @@ for(i=0:2)
     r1 = tri_send('SAP',4,i,v(i+1,1));
     r2 = tri_send('SAP',5,i,v(i+1,2));
 end
-                        
+
 dmpos(1:3) = origin(1:3);
 update_pos;
 
@@ -2315,9 +2551,9 @@ function scanboxfig_CloseRequestFcn(hObject, eventdata, handles)
 
 % Hint: delete(hObject) closes the figure
 
-global scanbox_h ltimer;
+global scanbox_h ltimer sbconfig;
 
-[~, ~] = system('netsh interface set interface "Local Area Connection" ENABLED');
+[~, ~] = system('netsh interface set interface "The World" ENABLED');
 
 delete(ltimer);
 
@@ -2333,7 +2569,17 @@ udp_close();
 ot_start(); % reset to zero...
 ot_close();
 
+if(sbconfig.nroi_parallel)
+    delete(gcp); % shutdown parallel pool
+end
+
+if(sbconfig.gpu_pages>0)
+    reset(gpuDevice(sbconfig.gpu_dev));
+    % set the gpu memory if necessary and clear memory
+end
+
 unloadlibrary('ATSApi')
+
 clear all;      % clear all vars just in case...
 
 % --- Executes during object creation, after setting all properties.
@@ -2345,6 +2591,10 @@ function scanboxfig_CreateFcn(hObject, eventdata, handles)
 global scanbox_h seg;
 
 scanbox_h = hObject;
+p = get(0,'screensize');
+q = get(hObject,'Position');
+q(1:2) = p(3:4)/2 - q(3:4)/2;
+set(hObject,'Position',q)
 seg = [];
 
 % --- Executes on button press in timebin.
@@ -2523,8 +2773,9 @@ function pushbutton24_Callback(hObject, eventdata, handles)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 
-global acc;
+global acc gtime;
 acc = [];
+gtime = 1; % next to be filled
 
 %set(hObject,'enable','off'); drawnow; set(hObject,'enable','on');
 
@@ -2603,9 +2854,9 @@ if(seg.ncell>0)
             m = m+1;
         end
     end
-    set(handles.cell_a,'String',cstr,'Value',1);
+    set(handles.alist,'String',cstr,'Value',1);
 else
-    set(handles.cell_a,'String','','Value',1);
+    set(handles.alist,'String','','Value',1);
 end
 
 set(handles.cell_d,'String','','Value',1);
@@ -2658,14 +2909,14 @@ if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgr
 end
 
 
-% --- Executes on selection change in cell_a.
-function cell_a_Callback(hObject, eventdata, handles)
-% hObject    handle to cell_a (see GCBO)
+% --- Executes on selection change in alist.
+function alist_Callback(hObject, eventdata, handles)
+% hObject    handle to alist (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 
-% Hints: contents = cellstr(get(hObject,'String')) returns cell_a contents as cell array
-%        contents{get(hObject,'Value')} returns selected item from cell_a
+% Hints: contents = cellstr(get(hObject,'String')) returns alist contents as cell array
+%        contents{get(hObject,'Value')} returns selected item from alist
 
 global seg img0_h lastsel;
 
@@ -2693,8 +2944,8 @@ end
 
 
 % --- Executes during object creation, after setting all properties.
-function cell_a_CreateFcn(hObject, eventdata, handles)
-% hObject    handle to cell_a (see GCBO)
+function alist_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to alist (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    empty - handles not created until after all CreateFcns called
 
@@ -2703,6 +2954,8 @@ function cell_a_CreateFcn(hObject, eventdata, handles)
 if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
     set(hObject,'BackgroundColor','white');
 end
+set(hObject,'String',{},'Value',0);
+
 
 
 % --- Executes on selection change in cell_d.
@@ -2755,7 +3008,7 @@ function pushbutton26_Callback(hObject, eventdata, handles)
 
 % remove selection from first list
 
-cella = handles.cell_a;
+cella = handles.alist;
 idx = get(cella,'value');
 l = get(cella,'String');
 v = l{idx};
@@ -2787,7 +3040,7 @@ set(celld,'String',l,'Value',1)
 
 %add it to the second one...
 
-cella = handles.cell_a;
+cella = handles.alist;
 l = get(cella,'String');
 l{end+1} = v;
 set(cella,'String',l,'Value',1);
@@ -2801,7 +3054,7 @@ function pushbutton28_Callback(hObject, eventdata, handles)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 
-cella = handles.cell_a;
+cella = handles.alist;
 la = get(cella,'String');
 set(cella,'String',{},'Value',1)
 
@@ -2824,24 +3077,30 @@ set(celld,'String',{},'Value',1);
 
 %add it to the second one...
 
-cella = handles.cell_a;
+cella = handles.alist;
 set(cella,'String',ld,'Value',1);
 
 
 % --- Executes during object creation, after setting all properties.
-function traces_CreateFcn(hObject, eventdata, handles)
-% hObject    handle to traces (see GCBO)
+function roi_traces_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to roi_traces (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    empty - handles not created until after all CreateFcns called
 
-% Hint: place code in OpeningFcn to populate traces
+% Hint: place code in OpeningFcn to populate roi_traces
 
-global traces_h trace_idx trace_period  trace_data;
+global roi_traces_h trace_idx trace_period;
 
-traces_h = hObject;
-set(hObject,'color',[0 0 0],'Box','on');
+delete(get(hObject,'children'));
+roi_traces_h = hObject;
 trace_idx = 1;
-trace_period = 512; % how many points in the trace....
+trace_period = 300; % how many points in the trace....
+xlim(hObject,[1 trace_period]);
+axis(hObject,'normal','off');
+
+
+% trace_img = imshow(254*ones(300,796,'uint8'));
+% axis(hObject,'off','image');
 
 
 function animal_Callback(hObject, eventdata, handles)
@@ -2958,7 +3217,7 @@ if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgr
 end
 
 global savesel;
-savesel = 1;
+savesel = 2;
 
 
 % --- Executes during object creation, after setting all properties.
@@ -2969,7 +3228,7 @@ function dirname_CreateFcn(hObject, eventdata, handles)
 
 global datadir animal expt trial
 
-datadir = 'd:\2pdata';
+datadir = 'c:\2pdata';
 animal = 'xx0';
 expt = 0;
 trial = 0;
@@ -3508,7 +3767,7 @@ h = get(get(img0_h,'Parent'),'Children');
 delete(findobj(h,'tag','pt'));
 
 seg =[];
-set(handles.cell_a,'String',[]);
+set(handles.alist,'String',[]);
 set(handles.cell_d,'String',[]);
 
 
@@ -3609,11 +3868,11 @@ for(i=1:length(h))
 end
 
 
-str = get(handles.cell_a,'String');
+str = get(handles.alist,'String');
 idx = find(strcmp(num2str(lastsel),str));
 if(~isempty(idx))
     str(idx) = [];
-    set(handles.cell_a,'String',str,'Value',1);
+    set(handles.alist,'String',str,'Value',1);
 end
 
 
@@ -4116,6 +4375,7 @@ if(~ismember(eventdata.Character,{')','!','@','#','$','%'}))
     return;
 end
 
+set(handles.stabilize,'Value',0);   % stop stabilizing if you move motors...
 
 th = str2num(get(handles.thpos,'String'));
 
@@ -4139,44 +4399,44 @@ if(~get(handles.motorlock,'Value'))
                         switch(axis_sel)
                             case 0
                                 dmpos(1) = dmpos(1) + mstep(1)*cosd(th);
-                                dmpos(3) = dmpos(3) + mstep(1)*motor_gain(1)/motor_gain(3)*sind(th);
+                                dmpos(3) = dmpos(3) - mstep(1)*motor_gain(1)/motor_gain(3)*sind(th);
                             case 2
                                 dmpos(3) = dmpos(3) + mstep(3)*cosd(th);
                                 dmpos(1) = dmpos(1) + mstep(3)*motor_gain(3)/motor_gain(1)*sind(th);
                         end
                         
-%                         tri_send('SCO',0,2,dmpos(3));
-%                         tri_send('SCO',0,0,dmpos(1));
-%                         tri_send('MVP',2,hex2dec('45'),0);
+                        tri_send('SCO',0,2,dmpos(3));
+                        tri_send('SCO',0,0,dmpos(1));
+                        tri_send('MVP',2,hex2dec('45'),0);
                         
-                         r = tri_send('MVP',0,2,dmpos(3));
-                         r = tri_send('MVP',0,0,dmpos(1));
+                        %                         r = tri_send('MVP',0,2,dmpos(3));
+                        %                         r = tri_send('MVP',0,0,dmpos(1));
                     else
                         dmpos(axis_sel+1) = dmpos(axis_sel+1)-mstep(axis_sel+1);
                         r = tri_send('MVP',0,axis_sel,dmpos(axis_sel+1));
                     end
                     
                     
-                case 3     %pivot 
+                case 3     %pivot
                     
                     if(axis_sel==3)
                         
                         dmpos(4) = dmpos(4)+mstep(axis_sel+1);
-                        th = dmpos(4) * motor_gain(4); 
-
+                        th = dmpos(4) * motor_gain(4);
+                        
                         dmpos(1) = zpiv + sbconfig.obj_length * cosd(th) / motor_gain(1);
                         dmpos(3) = xpiv - sbconfig.obj_length * sind(th) / motor_gain(3);
-                                              
+                        
                         tri_send('SCO',0,0,dmpos(1));
                         tri_send('SCO',0,2,dmpos(3));
                         tri_send('SCO',0,3,dmpos(4));
                         tri_send('MVP',2,hex2dec('4d'),0);
-
-                                                
-%                         r = tri_send('MVP',0,axis_sel,dmpos(axis_sel+1));               
-%                         r = tri_send('MVP',0,2,dmpos(3)); %x
-%                         r = tri_send('MVP',0,0,dmpos(1)); %z
-%                         r = tri_send('MVP',0,3,dmpos(4)); %th
+                        
+                        
+                        %                         r = tri_send('MVP',0,axis_sel,dmpos(axis_sel+1));
+                        %                         r = tri_send('MVP',0,2,dmpos(3)); %x
+                        %                         r = tri_send('MVP',0,0,dmpos(1)); %z
+                        %                         r = tri_send('MVP',0,3,dmpos(4)); %th
                     end
                     
             end
@@ -4197,18 +4457,18 @@ if(~get(handles.motorlock,'Value'))
                         switch(axis_sel)
                             case 0
                                 dmpos(1) = dmpos(1) - mstep(1)*cosd(th);
-                                dmpos(3) = dmpos(3) - mstep(1)*motor_gain(1)/motor_gain(3)*sind(th);
+                                dmpos(3) = dmpos(3) + mstep(1)*motor_gain(1)/motor_gain(3)*sind(th);
                             case 2
                                 dmpos(3) = dmpos(3) - mstep(3)*cosd(th);
                                 dmpos(1) = dmpos(1) - mstep(3)*motor_gain(3)/motor_gain(1)*sind(th);
                         end
                         
-%                         tri_send('SCO',0,2,dmpos(3));
-%                         tri_send('SCO',0,0,dmpos(1));
-%                         tri_send('MVP',2,hex2dec('45'),0);
+                        tri_send('SCO',0,2,dmpos(3));
+                        tri_send('SCO',0,0,dmpos(1));
+                        tri_send('MVP',2,hex2dec('45'),0);
                         
-                         r = tri_send('MVP',0,2,dmpos(3));
-                         r = tri_send('MVP',0,0,dmpos(1));
+                        %                         r = tri_send('MVP',0,2,dmpos(3));
+                        %                         r = tri_send('MVP',0,0,dmpos(1));
                     else
                         dmpos(axis_sel+1) = dmpos(axis_sel+1)+mstep(axis_sel+1);
                         r = tri_send('MVP',0,axis_sel,dmpos(axis_sel+1));
@@ -4220,8 +4480,8 @@ if(~get(handles.motorlock,'Value'))
                     if(axis_sel==3)
                         
                         dmpos(4) = dmpos(4)-mstep(axis_sel+1);
-                        th = dmpos(4) * motor_gain(4); 
-
+                        th = dmpos(4) * motor_gain(4);
+                        
                         dmpos(1) = zpiv + sbconfig.obj_length * cosd(th) / motor_gain(1);
                         dmpos(3) = xpiv - sbconfig.obj_length * sind(th) / motor_gain(3);
                         
@@ -4230,10 +4490,10 @@ if(~get(handles.motorlock,'Value'))
                         tri_send('SCO',0,3,dmpos(4));
                         tri_send('MVP',2,hex2dec('4d'),0);
                         
-%                         r = tri_send('MVP',0,axis_sel,dmpos(axis_sel+1));
-%                         r = tri_send('MVP',0,2,dmpos(3)); %x
-%                         r = tri_send('MVP',0,0,dmpos(1)); %z
-%                         r = tri_send('MVP',0,3,dmpos(4)); %th
+                        %                         r = tri_send('MVP',0,axis_sel,dmpos(axis_sel+1));
+                        %                         r = tri_send('MVP',0,2,dmpos(3)); %x
+                        %                         r = tri_send('MVP',0,0,dmpos(1)); %z
+                        %                         r = tri_send('MVP',0,3,dmpos(4)); %th
                     end
                     
             end
@@ -4292,11 +4552,11 @@ if(~get(handles.motorlock,'Value'))
     
     mname = {'zpos','ypos','xpos','thpos'};
     v = zeros(1,4);
-%     for(i=0:3)
-%         r = tri_send('GAP',0,i,0);
-%         v(i+1) =  motor_gain(i+1) * double(r.value-origin(i+1));  %%  (inches/rot) / (steps/rot) * 25400um
-%     end
-
+    %     for(i=0:3)
+    %         r = tri_send('GAP',0,i,0);
+    %         v(i+1) =  motor_gain(i+1) * double(r.value-origin(i+1));  %%  (inches/rot) / (steps/rot) * 25400um
+    %     end
+    
     for(i=0:3)
         v(i+1) =  motor_gain(i+1) * double(dmpos(i+1)-origin(i+1));  %%  (inches/rot) / (steps/rot) * 25400um
     end
@@ -4331,7 +4591,8 @@ function pushbutton48_Callback(hObject, eventdata, handles)
 % handles    structure with handles and user data (see GUIDATA)
 
 
-r = tri_send('MVP',1,4,1500);
+r = tri_send('MVP',1,4,17600/4);  % 45 turns of screw is one whole revolution of filer
+set(handles.powerval,'String',num2str(mod(str2num(get(handles.powerval,'String'))+1,32)));
 
 % --- Executes on button press in pushbutton49.
 function pushbutton49_Callback(hObject, eventdata, handles)
@@ -4339,7 +4600,8 @@ function pushbutton49_Callback(hObject, eventdata, handles)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
 
-r = tri_send('MVP',1,4,-1500);
+r = tri_send('MVP',1,4,-17600/4);
+set(handles.powerval,'String',num2str(mod(str2num(get(handles.powerval,'String'))-1,32)));
 
 
 
@@ -5193,35 +5455,60 @@ function pushbutton54_Callback(hObject, eventdata, handles)
 
 global z_top z_bottom z_steps z_size z_vals;
 global motor_gain origin scanbox_h;
-global experiment;
+global experiment zstack_running;
 
-z_vals = linspace(z_top,z_bottom,z_steps);
-
-if(~isempty(z_vals) && ~any(isnan(z_vals)))
+if(zstack_running)
+   
+            h = findobj(scanbox_h,'Tag','grabb');
+            f = get(h,'Callback');
+            f(h,guidata(h));  % press the grab button to abort...
+            zstack_running = 0;
+            set(hObject,'String','Acquire');
+            drawnow;
     
-    z_vals = [z_vals(1) diff(z_vals)];  % the differences...
+else
     
-    for(val=z_vals)
+    set(hObject,'String','Stop');
+    drawnow;
+   
+    zstack_running = 1;
+    
+    z_vals = linspace(z_top,z_bottom,z_steps);
+    
+    if(~isempty(z_vals) && ~any(isnan(z_vals)))
         
-        %move the motor relative to the beginning...
+        z_vals = [z_vals(1) diff(z_vals)];  % the differences...
         
-        val = round(val/motor_gain(1));
-        r=tri_send('MVP',1,0,val);
-        v =  motor_gain(1) * double(r.value-origin(1));
-        set(handles.zpos,'String',sprintf('%.2f',v));
-        drawnow;
-        
-        %scan
-        h = findobj(scanbox_h,'Tag','grabb');
-        f = get(h,'Callback');
-        f(h,guidata(h));  % press the grab button....
-        
-        % update file number
-        
-        set(handles.expt,'String',sprintf('%03d',str2num(get(handles.expt,'String'))+1));
-        experiment = experiment+1;
+        for(val=z_vals)
+            
+            if(zstack_running)
+                %move the motor relative to the beginning...
+                
+                val = round(val/motor_gain(1));
+                r=tri_send('MVP',1,0,val);
+                v =  motor_gain(1) * double(r.value-origin(1));
+                set(handles.zpos,'String',sprintf('%.2f',v));
+                drawnow;
+                
+                %scan
+                h = findobj(scanbox_h,'Tag','grabb');
+                f = get(h,'Callback');
+                f(h,guidata(h));  % press the grab button....
+                
+                % update file number
+                
+                set(handles.expt,'String',sprintf('%03d',str2num(get(handles.expt,'String'))+1));
+                experiment = experiment+1;
+            end
+            
+        end
         
     end
+    
+    % Done!
+    zstack_running = 0;
+    set(hObject,'String','Acquire');
+    drawnow;
     
 end
 
@@ -5391,7 +5678,7 @@ function pushbutton60_Callback(hObject, eventdata, handles)
 global dmpos mpos;
 mpos{1} = dmpos;
 
-% for(i=0:3) 
+% for(i=0:3)
 %     tri_send('CCO',11,i,0);
 % end
 
@@ -5406,7 +5693,7 @@ function pushbutton61_Callback(hObject, eventdata, handles)
 global mpos dmpos;
 
 for(i=0:3)
-   tri_send('SCO',0,i,mpos{1}(i+1));
+    tri_send('SCO',0,i,mpos{1}(i+1));
 end
 
 v = zeros(4,2);
@@ -5442,9 +5729,9 @@ for(i=0:3)
 end
 
 dmpos = mpos{1};
-update_pos;    
+update_pos;
 
-                        
+
 % --- Executes on button press in pushbutton62.
 function pushbutton62_Callback(hObject, eventdata, handles)
 % hObject    handle to pushbutton62 (see GCBO)
@@ -5454,7 +5741,7 @@ function pushbutton62_Callback(hObject, eventdata, handles)
 global dmpos mpos;
 mpos{2} = dmpos;
 
-% for(i=0:3) 
+% for(i=0:3)
 %     tri_send('CCO',12,i,0);
 % end
 
@@ -5469,7 +5756,7 @@ global mpos dmpos;
 global mpos dmpos;
 
 for(i=0:3)
-   tri_send('SCO',0,i,mpos{2}(i+1));
+    tri_send('SCO',0,i,mpos{2}(i+1));
 end
 
 v = zeros(4,2);
@@ -5504,7 +5791,7 @@ for(i=0:3)
 end
 
 dmpos = mpos{2};
-update_pos;    
+update_pos;
 
 
 % --- Executes on button press in pushbutton64.
@@ -5516,7 +5803,7 @@ function pushbutton64_Callback(hObject, eventdata, handles)
 global dmpos mpos;
 mpos{3} = dmpos;
 
-% for(i=0:3) 
+% for(i=0:3)
 %     tri_send('CCO',13,i,0);
 % end
 
@@ -5529,7 +5816,7 @@ function pushbutton65_Callback(hObject, eventdata, handles)
 global mpos dmpos;
 
 for(i=0:3)
-   tri_send('SCO',0,i,mpos{3}(i+1));
+    tri_send('SCO',0,i,mpos{3}(i+1));
 end
 
 v = zeros(4,2);
@@ -5564,7 +5851,7 @@ for(i=0:3)
 end
 
 dmpos = mpos{3};
-update_pos;    
+update_pos;
 
 
 % --- Executes on button press in pushbutton66.
@@ -5576,7 +5863,7 @@ function pushbutton66_Callback(hObject, eventdata, handles)
 global dmpos mpos;
 mpos{4} = dmpos;
 
-% for(i=0:3) 
+% for(i=0:3)
 %     tri_send('CCO',14,i,0);
 % end
 
@@ -5589,7 +5876,7 @@ function pushbutton67_Callback(hObject, eventdata, handles)
 global mpos dmpos;
 
 for(i=0:3)
-   tri_send('SCO',0,i,mpos{4}(i+1));
+    tri_send('SCO',0,i,mpos{4}(i+1));
 end
 
 v = zeros(4,2);
@@ -5624,29 +5911,29 @@ for(i=0:3)
 end
 
 dmpos = mpos{4};
-update_pos;    
+update_pos;
 
 
 
 
 function update_pos
 
-global dmpos motor_gain origin scanbox_h; 
+global dmpos motor_gain origin scanbox_h;
 
-    mname = {'zpos','ypos','xpos','thpos'};
-    v = zeros(1,4);
-    
-    for(i=0:3)
-        v(i+1) =  motor_gain(i+1) * double(dmpos(i+1)-origin(i+1));  %%  (inches/rot) / (steps/rot) * 25400um
-    end
+mname = {'zpos','ypos','xpos','thpos'};
+v = zeros(1,4);
 
-    for(i=0:3)
-        h = findobj(scanbox_h,'Tag',mname{i+1});
-        set(h,'String',sprintf('%.2f',v(i+1)));
-        drawnow;
-    end
-    
-    
+for(i=0:3)
+    v(i+1) =  motor_gain(i+1) * double(dmpos(i+1)-origin(i+1));  %%  (inches/rot) / (steps/rot) * 25400um
+end
+
+for(i=0:3)
+    h = findobj(scanbox_h,'Tag',mname{i+1});
+    set(h,'String',sprintf('%.2f',v(i+1)));
+    drawnow;
+end
+
+
 
 
 % --- Executes on button press in pushbutton68.
@@ -5678,3 +5965,468 @@ function text77_Callback(hObject, eventdata, handles)
 % hObject    handle to text77 (see GCBO)
 % eventdata  reserved - to be defined in a future version of MATLAB
 % handles    structure with handles and user data (see GUIDATA)
+
+
+% --- Executes on selection change in alist.
+function listbox6_Callback(hObject, eventdata, handles)
+% hObject    handle to alist (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: contents = cellstr(get(hObject,'String')) returns alist contents as cell array
+%        contents{get(hObject,'Value')} returns selected item from alist
+
+
+% --- Executes during object creation, after setting all properties.
+function listbox6_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to alist (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: listbox controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+
+
+% --- Executes on selection change in blist.
+function blist_Callback(hObject, eventdata, handles)
+% hObject    handle to blist (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: contents = cellstr(get(hObject,'String')) returns blist contents as cell array
+%        contents{get(hObject,'Value')} returns selected item from blist
+
+
+% --- Executes during object creation, after setting all properties.
+function blist_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to blist (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: listbox controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+set(hObject,'String',{},'Value',0);
+
+
+% --- Executes on button press in deletecell.
+function deletecell_Callback(hObject, eventdata, handles)
+% hObject    handle to deletecell (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+global ncell cellpoly;
+
+l = get(handles.alist,'String');
+v = get(handles.alist,'Value');
+if(v>0)
+    j = str2num(l{v});
+    delete(cellpoly{j});
+    cellpoly{j} = [];
+    l(v) = [];
+    set(handles.alist,'String',l,'Value',min(v,length(l)));
+end
+
+% --- Executes on button press in alla2b.
+function alla2b_Callback(hObject, eventdata, handles)
+% hObject    handle to alla2b (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+
+la = get(handles.alist,'String');
+va = get(handles.alist,'Value');
+
+lb = get(handles.blist,'String');
+vb = get(handles.blist,'Value');
+
+if(length(la)>0)
+    lb = {lb{:} la{:}};
+    la = {};
+    set(handles.alist,'String',{},'Value',0);
+    vb = length(lb);
+    set(handles.blist,'String',lb,'Value',length(lb));
+end
+
+
+
+
+
+% --- Executes on button press in a2b.
+function a2b_Callback(hObject, eventdata, handles)
+% hObject    handle to a2b (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+la = get(handles.alist,'String');
+va = get(handles.alist,'Value');
+
+lb = get(handles.blist,'String');
+vb = get(handles.blist,'Value');
+
+if(length(la)>0)
+    lb{end+1} = la{va};    % append
+    
+    la(va) = [];
+    set(handles.alist,'String',la,'Value',min(va,length(la)));
+    
+    vb = length(lb);
+    set(handles.blist,'String',lb,'Value',length(lb));
+end
+
+
+% --- Executes on button press in b2a.
+function b2a_Callback(hObject, eventdata, handles)
+% hObject    handle to b2a (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+la = get(handles.alist,'String');
+va = get(handles.alist,'Value');
+
+lb = get(handles.blist,'String');
+vb = get(handles.blist,'Value');
+
+if(length(lb)>0)
+    la{end+1} = lb{vb};    % append
+    
+    lb(vb) = [];
+    set(handles.blist,'String',lb,'Value',min(vb,length(lb)));
+    
+    va = length(la);
+    set(handles.alist,'String',la,'Value',length(la));
+end
+
+% --- Executes on button press in addtoa.
+function addtoa_Callback(hObject, eventdata, handles)
+% hObject    handle to addtoa (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+global ncell cellpoly;
+
+h = impoly(handles.image0);
+
+l = get(handles.alist,'String');
+if(isempty(l))
+    ncell = ncell+1;
+    l = {num2str(ncell)};
+    cellpoly{ncell} = h;
+else
+    ncell = ncell+1;
+    l = {l{:} num2str(ncell)};
+    cellpoly{ncell} = h;
+end
+set(handles.alist,'String',l,'Value',length(l));
+
+
+% --- Executes on button press in allb2a.
+function allb2a_Callback(hObject, eventdata, handles)
+% hObject    handle to allb2a (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+la = get(handles.alist,'String');
+va = get(handles.alist,'Value');
+
+lb = get(handles.blist,'String');
+vb = get(handles.blist,'Value');
+
+if(length(lb)>0)
+    la = {la{:} lb{:}};
+    lb = {};
+    set(handles.blist,'String',{},'Value',0);
+    
+    va = length(la);
+    set(handles.alist,'String',la,'Value',length(la));
+end
+
+
+% --- Executes during object creation, after setting all properties.
+function addtoa_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to addtoa (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+
+% --- Executes on button press in analogout.
+function analogout_Callback(hObject, eventdata, handles)
+% hObject    handle to analogout (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hint: get(hObject,'Value') returns toggle state of analogout
+
+
+
+% --- Executes on button press in networkstream.
+function networkstream_Callback(hObject, eventdata, handles)
+% hObject    handle to networkstream (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hint: get(hObject,'Value') returns toggle state of networkstream
+
+global stream_udp sbconfig;
+
+if(get(hObject,'Value'))
+    try
+        stream_udp  = udp(sbconfig.stream_host, 'RemotePort', sbconfig.stream_port);
+        fopen(stream_udp);
+    catch
+        warndlg('Connection refused. Check network parameters.','scanbox');
+        set(hObject,'Value',0);
+        delete(stream_udp);
+        stream_udp = [];
+    end
+else
+    try
+        fclose(stream_udp);
+        stream_udp = [];
+    catch
+    end
+end
+
+
+
+% --- Executes on button press in dellall.
+function dellall_Callback(hObject, eventdata, handles)
+% hObject    handle to dellall (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+global ncell cellpoly;
+
+ncell = 0;
+cellfun(@delete,cellpoly);
+cellpoly = {};
+set(handles.alist,'String',{},'Value',0);
+set(handles.blist,'String',{},'Value',0);
+
+
+
+function edit38_Callback(hObject, eventdata, handles)
+% hObject    handle to edit38 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: get(hObject,'String') returns contents of edit38 as text
+%        str2double(get(hObject,'String')) returns contents of edit38 as a double
+
+
+% --- Executes during object creation, after setting all properties.
+function edit38_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to edit38 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: edit controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+
+
+% --- Executes on button press in stabilize.
+function stabilize_Callback(hObject, eventdata, handles)
+% hObject    handle to stabilize (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hint: get(hObject,'Value') returns toggle state of stabilize
+
+global ref_img
+
+if(get(hObject,'Value')==1)
+    if(isempty(ref_img))
+        warndlg('First define a reference image by accumulating during times of no relative movement.','scanbox');
+        set(hObject,'Value',0);
+    end
+else
+    % ref_img = [];
+end
+
+% --- Executes on button press in pushbutton76.
+function pushbutton76_Callback(hObject, eventdata, handles)
+% hObject    handle to pushbutton76 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+global ref_img img0_h ref_img_fft xref yref ref_th sbconfig;
+global gData gtime;
+
+
+% set reference
+
+if(gtime<10)
+    warndlg('Please collect a longer sequence to define a reference image','scanbox');
+    ref_img = [];
+    return;
+end
+
+
+% mm = mean(gData(1:gtime,:,:),1);
+% ss = std(gData(1:gtime,:,:),[],1);
+% cv = mm./ss;
+% Mx = max(cv(:));
+% Mm = min(cv(:));
+% ref_img = squeeze(gather((cv-Mm)/(Mx-Mm)));
+% set(img0_h,'Cdata',uint8(255*ref_img));
+
+mm = mean(gData(1:gtime,:,:),1);
+Mx = max(mm(:));
+Mm = min(mm(:));
+ref_img = squeeze(gather((mm-Mm)/(Mx-Mm)));
+set(img0_h,'Cdata',uint8(255*ref_img));
+
+
+R = cell(1,sbconfig.nroi_auto);
+pos = zeros(sbconfig.nroi_auto,4);
+for(i=1:sbconfig.nroi_auto)
+    h = imrect(handles.image0,[sbconfig.nroi_auto_size sbconfig.nroi_auto_size sbconfig.nroi_auto_size sbconfig.nroi_auto_size]);
+    h.setFixedAspectRatioMode(true);
+    h.setResizable(false);
+    R{i} = h;
+    pos(i,:) = wait(h);
+end
+pos = round(pos(:,1:2) + pos(:,3:4)/2);
+
+for(i=1:length(R))
+    delete(R{i});
+end
+
+ref_img_fft = cell(1,length(sbconfig.nroi_auto));
+ref_th = zeros(1,length(sbconfig.nroi_auto));
+xref = zeros(sbconfig.nroi_auto,sbconfig.nroi_auto_size);
+yref = zeros(sbconfig.nroi_auto,sbconfig.nroi_auto_size);
+
+for(i=1:sbconfig.nroi_auto)  
+  yref(i,:) = pos(i,2)- sbconfig.nroi_auto_size/2 + 1 : pos(i,2) + sbconfig.nroi_auto_size/2;
+  xref(i,:) = pos(i,1)- sbconfig.nroi_auto_size/2 + 1 : pos(i,1) + sbconfig.nroi_auto_size/2;
+  rsub = ref_img(yref(i,:),xref(i,:));
+  ref_img_fft{i} = fft2(rot90(rsub,2));
+
+%   m = min(rsub(:));
+%   M = max(rsub(:));
+%   rn = (rsub-m)/(M-m);
+%   ref_th(i) = M - graythresh(1-rn) * (M-m) ;
+%   ref_img_fft{i} = fft2(rot90(rsub<ref_th(i)));
+end
+
+
+% --- Executes during object creation, after setting all properties.
+function analogout_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to analogout (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+
+% --- Executes during object creation, after setting all properties.
+function networkstream_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to networkstream (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+
+%-------------------------------------------------------------------------
+function [] = wrap_cb()
+% wrap_cb.m--Callback for "wrap" dial.
+%-------------------------------------------------------------------------
+
+wrapDial = dial.find_dial('wrapDial','-1');
+dialVal = round(get(wrapDial,'Value'))
+       
+
+function [u,v] = fftalignauto(A)
+
+global ref_img_fft xref yref ref_th sbconfig
+
+u = zeros(1,sbconfig.nroi_auto);
+v = zeros(1,sbconfig.nroi_auto);
+N = size(xref,2);
+
+if(sbconfig.nroi_parallel)
+    parfor(k=1:sbconfig.nroi_auto)
+        C = fftshift(real(ifft2(fft2(A(yref(k,:),xref(k,:))).*ref_img_fft{k})));
+        [~,i] = max(C(:));
+        [ii jj] = ind2sub(size(C),i);
+        u(k) = N/2-ii;
+        v(k) = N/2-jj;
+    end
+else
+    for(k=1:sbconfig.nroi_auto)
+        C = fftshift(real(ifft2(fft2(A(yref(k,:),xref(k,:))).*ref_img_fft{k})));
+        [~,i] = max(C(:));
+        [ii jj] = ind2sub(size(C),i);
+        u(k) = N/2-ii;
+        v(k) = N/2-jj;
+    end
+end
+
+
+% --- Executes on button press in segment.
+function segment_Callback(hObject, eventdata, handles)
+% hObject    handle to segment (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hint: get(hObject,'Value') returns toggle state of segment
+
+% global scanbox_h image0
+% 
+% if(get(hObject,'Value'))
+%     set(scanbox_h,'WindowButtonMotionfcn',@wbm);
+% else
+%     set(scanbox_h,'WindowButtonMotionfcn','');
+% end
+
+
+% --- Executes on selection change in reftype.
+function reftype_Callback(hObject, eventdata, handles)
+% hObject    handle to reftype (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: contents = cellstr(get(hObject,'String')) returns reftype contents as cell array
+%        contents{get(hObject,'Value')} returns selected item from reftype
+
+
+% --- Executes during object creation, after setting all properties.
+function reftype_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to reftype (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: popupmenu controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+
+
+% --- Executes on button press in pushbutton78.
+function pushbutton78_Callback(hObject, eventdata, handles)
+% hObject    handle to pushbutton78 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+set(handles.pmt0,'Value',0);
+set(handles.pmt1,'Value',0);
+set(handles.pmt0txt,'String','0.00');
+set(handles.pmt1txt,'String','0.00');
+sb_gain0(0);
+sb_gain1(0);
+
+
+% --- Executes on button press in stimmark.
+function stimmark_Callback(hObject, eventdata, handles)
+% hObject    handle to stimmark (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hint: get(hObject,'Value') returns toggle state of stimmark
