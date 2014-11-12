@@ -1,0 +1,51 @@
+[Board]
+Server Name=Genie_M1410
+Device Name=S1054045
+Device Index=0
+[General]
+Company Name=DALSA
+Camera Name=Default
+Model Name=Genie M1410
+Vic Name=Default
+[Acquisition Device Features]
+DeviceVendorName=DALSA
+DeviceModelName=Genie M1410
+Gain=41;GainExponent=1
+BlackLevel=2;BlackLevelExponent=0
+ExposureMode=1
+ExposureTime=6813;ExposureTimeExponent=6
+ExposureAlignment=0
+TriggerDelayToIntegration=0;TriggerDelayToIntegrationExponent=6
+BinningHorizontal=2
+BinningVertical=2
+NoiseReduction=0
+TestImageSelector=0
+LUTEnable=0
+FlatFieldEnable=0
+TriggerEnable=1
+TriggerSource=1
+FramesPerTrigger=1;FramesPerTriggerExponent=0
+PolarityInput_1=0
+DebounceInput_1=1;DebounceInput_1Exponent=6
+PolarityInput_2=0
+DebounceInput_2=1;DebounceInput_2Exponent=6
+OutputSelectorOutput_1=0
+OutputSelectorOutput_2=4
+PulseDelayOutput_2=0;PulseDelayOutput_2Exponent=6
+PulseDurationOutput_2=100;PulseDurationOutput_2Exponent=6
+PolarityOutput_2=0
+TimestampCounter=0
+TimestampResetSource=0
+PixelFormat=17301505
+Width=680;WidthExponent=0
+Height=512;HeightExponent=0
+OffsetX=0;OffsetXExponent=0
+OffsetY=0;OffsetYExponent=0
+ImageFlip=0
+NetworkConfigurationMode=0
+InterPacketDelay=0;InterPacketDelayExponent=6
+PacketSize=1500;PacketSizeExponent=0
+MaximumPacketResend=100;MaximumPacketResendExponent=1
+InterPacketTimeout=10000;InterPacketTimeoutExponent=6
+ImageTimeout=700000;ImageTimeoutExponent=6
+HeartbeatTimeout=10000;HeartbeatTimeoutExponent=3

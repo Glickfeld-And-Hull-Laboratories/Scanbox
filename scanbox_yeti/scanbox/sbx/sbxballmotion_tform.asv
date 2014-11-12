@@ -1,0 +1,25 @@
+
+function ball = sbxballmotion_tform(fn)
+
+load(fn,'-mat');            % should be a '*_ball.mat' file
+
+data = squeeze(data);
+data = (data-min(data(:)))/(max(data(:))-min(data(:)));
+
+ball = cell(1,size(data,3));
+f_lap = fspecial('laplacian',.5); 
+
+[opt,met] = imregconfig('monomodal');
+
+z1 = double(data(:,:,1));
+z1 = filter2(f_lap,z1,'valid');
+
+for(n=1:size(data,3)-1)
+    z2 = double(data(:,:,n+1));
+    z2 = filter2(f_lap,z2,'valid');
+    tform = imregtform(z1,z2,'rigid',opt,met);
+    ball{n} = tform;
+    z1 = z2;
+end
+
+save(fn,'ball','-append');     % append the motion estimate data...

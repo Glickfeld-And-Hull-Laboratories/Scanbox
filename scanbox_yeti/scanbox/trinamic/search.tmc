@@ -1,0 +1,10 @@
+      GAP 11, 3
+      JC ZE, LOOP2
+LOOP1:MVP REL,3,-100      // objective in negative angle
+      GAP 11, 3
+      JC NZ, LOOP1
+      STOP          
+LOOP2:MVP REL,3,100    // objective in postive angle 
+      GAP 11, 3
+      JC ZE, LOOP2
+      STOP
