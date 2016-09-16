@@ -1,0 +1,29 @@
+F0: JA Nop
+F1: JA Valign
+F2: JA Track
+
+Nop:  STOP
+
+Valign:
+      GAP 11, 3           // left switch status
+      JC ZE, LOOP2
+      
+LOOP1:MVP REL,3,-100      // objective in negative angle
+      GAP 11, 3
+      JC NZ, LOOP1
+      STOP          
+LOOP2:MVP REL,3,100    // objective in postive angle 
+      GAP 11, 3
+      JC ZE, LOOP2
+      STOP
+
+Track:
+      GAP 8,2          // reached the target?
+      JC ZE, Follow
+      MST 2
+      JA Track
+      
+Follow:   
+      MVP COORD, 2,10        // interpolation with motors 0, 1 and 2, hex-0x47
+      WAIT TICKS, 0, 2
+      JA Track 

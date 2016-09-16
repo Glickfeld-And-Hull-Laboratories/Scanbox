@@ -1,0 +1,11 @@
+
+%% Update knobby firmware...
+
+scanbox_config;
+d = which('knobby_update.py');  % where is it?
+p = strsplit(d,'\');
+py = strjoin(p(1:end-1),'\');
+
+
+
+cmd = sprintf('python.exe %s

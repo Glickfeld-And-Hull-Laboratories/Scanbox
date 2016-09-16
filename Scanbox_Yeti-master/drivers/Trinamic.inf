@@ -1,0 +1,98 @@
+; TRINAMIC.INF
+;
+; Copyright © 2014 Trinamic Motion Control GmbH & Co KG
+;
+; USB serial port driver installation file for Windows XP,Vista
+; Windows 7, 8, 8.1 (x86 and x64).
+;
+;
+; THIS SOFTWARE IS PROVIDED BY FUTURE TECHNOLOGY DEVICES INTERNATIONAL LIMITED ``AS IS'' AND ANY EXPRESS
+; OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+; FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL FUTURE TECHNOLOGY DEVICES INTERNATIONAL LIMITED
+; BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+; BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+; INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+; (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
+; THE POSSIBILITY OF SUCH DAMAGE.
+
+; Trinamic DRIVERS MAY BE USED ONLY IN CONJUNCTION WITH PRODUCTS BASED ON FTDI PARTS.
+
+; Trinamic DRIVERS MAY BE DISTRIBUTED IN ANY FORM AS LONG AS LICENSE INFORMATION IS NOT MODIFIED.
+
+; IF A CUSTOM VENDOR ID AND/OR PRODUCT ID OR DESCRIPTION STRING ARE USED, IT IS THE RESPONSIBILITY OF
+; THE PRODUCT MANUFACTURER TO MAINTAIN ANY CHANGES AND SUBSEQUENT RE-CERTIFICATION AS A RESULT OF
+; MAKING THESE CHANGES.
+
+
+
+[Version]                                                   ; Version section
+Signature="$Windows NT$"                                    ; All Windows versions
+Class=Ports                                                 ; This is a serial port driver
+ClassGuid={4D36E978-E325-11CE-BFC1-08002BE10318}            ; Associated GUID
+Provider=%Trinamic%
+CatalogFile=Trinamic.cat
+DriverVer=09/10/2014,1.0.0.0
+
+[DestinationDirs]                                           ; DestinationDirs section
+DefaultDestDir=12                                           ; Default install directory is \drivers or \IOSubSys
+
+[Manufacturer]                                              ; Manufacturer section
+%TRINAMIC%=TrinamicMfg, NTx86, NTamd64                      ; Only one manufacturer (TRINAMIC), models section isnamed
+                                                            ; TrinamicMfg
+
+[TrinamicMfg.NTx86]                                         ; Models section corresponding to TRINAMIC
+%TMC-STEPPER%       =USBtoSer.Install,USB\VID_2A3C&PID_0100 ; Identifies a device with Vendor ID (2A3Ch) and
+%TMC-BLDC-PMSM%     =USBtoSer.Install,USB\VID_2A3C&PID_0200 ; Product ID corresponding Install section
+%TMC-MCD%           =USBtoSer.Install,USB\VID_2A3C&PID_0300 ; is named USBtoSer.Install ( CDCHID )
+%OEM-MCD%           =USBtoSer.Install,USB\VID_2A3C&PID_0400
+%TMC-PANDRV%        =USBtoSer.Install,USB\VID_2A3C&PID_0500
+%TMC-MOTIONCOOKIE%  =USBtoSer.Install,USB\VID_2A3C&PID_0600
+%TMC-EVAL%          =USBtoSer.Install,USB\VID_2A3C&PID_0700
+%TMC-INTERFACE%     =USBtoSer.Install,USB\VID_2A3C&PID_0800
+%TMC-GENERIC%       =USBtoSer.Install,USB\VID_2A3C&PID_0900
+
+[TrinamicMfg.NTamd64]
+%TMC-STEPPER%       =USBtoSer.Install,USB\VID_2A3C&PID_0100 ; Models section corresponding to TRINAMIC
+%TMC-BLDC-PMSM%     =USBtoSer.Install,USB\VID_2A3C&PID_0200 ; for 64 bit systems
+%TMC-MCD%           =USBtoSer.Install,USB\VID_2A3C&PID_0300
+%OEM-MCD%           =USBtoSer.Install,USB\VID_2A3C&PID_0400
+%TMC-PANDRV%        =USBtoSer.Install,USB\VID_2A3C&PID_0500
+%TMC-MOTIONCOOKIE%  =USBtoSer.Install,USB\VID_2A3C&PID_0600
+%TMC-EVAL%          =USBtoSer.Install,USB\VID_2A3C&PID_0700
+%TMC-INTERFACE%     =USBtoSer.Install,USB\VID_2A3C&PID_0800
+%TMC-GENERIC%       =USBtoSer.Install,USB\VID_2A3C&PID_0900
+
+[USBtoSer.Install]                                          ; Install section
+include=mdmcpq.inf
+CopyFiles=FakeModemCopyFileSection
+AddReg=USBtoSer.AddReg                                      ; Registry keys to add are listed in USBtoSer.AddReg
+
+[USBtoSer.AddReg]                                           ; AddReg section
+HKR,,DevLoader,,*ntkern
+HKR,,NTMPDriver,,usbser.sys
+HKR,,EnumPropPages32,,"MsPorts.dll,SerialPortPropPageProvider"
+
+[USBtoSer.Install.Services]                                 ; Services section
+AddService=usbser,0x00000002,USBtoSer.AddService            ; Assign usbser as the PnP driver for the device
+
+[USBtoSer.AddService]                                       ; Service install section
+DisplayName=%USBSer%                                        ; Name of the serial driver
+ServiceType=1                                               ; Service kernel driver
+StartType=3                                                 ; Driver is started by the PnP manager
+ErrorControl=1                                              ; Warn about errors
+ServiceBinary=%12%\usbser.sys                               ; Driver filename
+
+[Strings]                                                   ; Strings section
+TRINAMIC="Trinamic Motion Control GmbH & Co KG"             ; String value for the TRINAMIC symbol
+
+TMC-STEPPER=       "TRINAMIC Stepper Device"                ; String value for the USBtoSerialConverter symbol0x0100
+TMC-BLDC-PMSM=     "TRINAMIC BLDC/PMSM Device"              ; String value for the USBtoSerialConverter symbol0x0200
+TMC-MCD=           "TRINAMIC Motor Control Device"          ; String value for the USBtoSerialConverter symbol0x0300
+OEM-MCD=           "Motor Control Device"                   ; String value for the USBtoSerialConverter symbol0x0400
+TMC-PANDRV=        "PANdrive(TM)"                           ; String value for the USBtoSerialConverter symbol0x0500
+TMC-MOTIONCOOKIE=  "TRINAMIC motionCookie(TM)"              ; String value for the USBtoSerialConverter symbol0x0600
+TMC-EVAL=          "TRINAMIC Evaluation Device"             ; String value for the USBtoSerialConverter symbol0x0700
+TMC-INTERFACE=     "TRINAMIC Interface Device"              ; String value for the USBtoSerialConverter symbol0x0800
+TMC-GENERIC=       "TRINAMIC Generic Device)"               ; String value for the USBtoSerialConverter symbol0x0900
+
+USBSer="USB Serial Emulation Driver"                        ; String value for the USBSer symbol
